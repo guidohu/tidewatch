@@ -1,0 +1,26 @@
+<resources>
+    <string id="AppName">Tide Watch</string>
+    <string id="SpotIdTitle">Surfline Spot ID</string>
+    <string id="SpotIdPrompt">Enter Surfline Spot ID</string>
+    <string id="TideUnitsTitle">Tide Units</string>
+    <string id="SwellUnitsTitle">Swell Units</string>
+    <string id="UnitsMeters">Meters</string>
+    <string id="UnitsFeet">Feet</string>
+    <string id="TideColorTitle">Tide Height Color</string>
+    <string id="GraphColorTitle">Tide Graph Color</string>
+    <string id="ColorWhite">White</string>
+    <string id="ColorBlue">Blue</string>
+    <string id="ColorPink">Pink</string>
+    <string id="ColorRed">Red</string>
+    <string id="ColorGreen">Green</string>
+    <string id="ColorYellow">Yellow</string>
+    <string id="ColorOrange">Orange</string>
+    <string id="ColorPurple">Purple</string>
+    <string id="ColorLtGray">Light Gray</string>
+    <string id="ColorDkGray">Dark Gray</string>
+    <string id="ColorLightBlue">Light Blue</string>
+    <string id="ColorPetrol">Petrol</string>
+    <string id="ColorTurquoise">Turquoise</string>
+    <string id="ShowSwellGraphTitle">Show Swell in Graph</string>
+    <string id="BaseColorTitle">Base Text Color</string>
+</resources>

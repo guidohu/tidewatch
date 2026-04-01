@@ -1,0 +1,22 @@
+# Garmin Connect IQ Build Artifacts
+bin/
+gen/
+mir/
+internal-mir/
+
+# Compiled App Files
+*.prg
+*.iq
+
+# Private Developer Key (CRITICAL: Do not commit your developer key!)
+developer_key
+
+# Local IDE and OS Settings
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# Local Settings and Data
+*-settings.json
+*.log

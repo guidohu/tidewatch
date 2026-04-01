@@ -12,6 +12,11 @@ class TideWatchApp extends Application.AppBase {
         AppBase.initialize();
     }
 
+    function logMemoryUsage() {
+        var stats = System.getSystemStats();
+        System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
+    }
+
     function onStart(state as Dictionary?) as Void {
     }
 
@@ -37,26 +42,40 @@ class TideWatchApp extends Application.AppBase {
 
     function onBackgroundData(data as Application.PersistableType) as Void {
         System.println("onBackgroundData called with data: " + (data == null ? "null" : "valid"));
+        logMemoryUsage();
         if (data != null && data instanceof Dictionary) {
             System.println("Saving synced data to storage");
-            if (data.hasKey("t")) { // "t" = Tide data
-                Application.Storage.setValue("tideData", data.get("t"));
+            if (data.hasKey(DataKeys.TIDE_DATA)) { // TIDE_DATA = Tide data array
+                Application.Storage.setValue("tideData", data.get(DataKeys.TIDE_DATA));
                 Application.Storage.deleteValue("tideError");
             }
-            if (data.hasKey("n")) { // "n" = Spot name
-                Application.Storage.setValue("spotName", data.get("n"));
+            if (data.hasKey(DataKeys.TIDE_START_TIME)) {
+                Application.Storage.setValue("tideStartTime", data.get(DataKeys.TIDE_START_TIME));
             }
-            if (data.hasKey("w")) { // "w" = Wave/Swell data
-                Application.Storage.setValue("waveData", data.get("w"));
+            if (data.hasKey(DataKeys.TIDE_INTERVAL)) {
+                Application.Storage.setValue("tideInterval", data.get(DataKeys.TIDE_INTERVAL));
+            }
+            if (data.hasKey(DataKeys.TIDE_EXTREMA)) {
+                Application.Storage.setValue("tideExtrema", data.get(DataKeys.TIDE_EXTREMA));
+            }
+            if (data.hasKey(DataKeys.TIDE_TIMES)) {
+                Application.Storage.setValue("tideTimes", data.get(DataKeys.TIDE_TIMES));
+            }
+            if (data.hasKey(DataKeys.SPOT_NAME)) { // SPOT_NAME = Spot name
+                Application.Storage.setValue("spotName", data.get(DataKeys.SPOT_NAME));
+            }
+            if (data.hasKey(DataKeys.WAVE_DATA)) { // WAVE_DATA = Wave/Swell data
+                Application.Storage.setValue("waveData", data.get(DataKeys.WAVE_DATA));
                 Application.Storage.deleteValue("waveError");
             }
-            if (data.hasKey("we")) { // "we" = Wave error code
-                Application.Storage.setValue("waveError", data.get("we"));
+            if (data.hasKey(DataKeys.WAVE_ERROR)) { // WAVE_ERROR = Wave error code
+                Application.Storage.setValue("waveError", data.get(DataKeys.WAVE_ERROR));
             }
-            if (data.hasKey("te")) { // "te" = Tide error code
-                Application.Storage.setValue("tideError", data.get("te"));
+            if (data.hasKey(DataKeys.TIDE_ERROR)) { // TIDE_ERROR = Tide error code
+                Application.Storage.setValue("tideError", data.get(DataKeys.TIDE_ERROR));
             }
             WatchUi.requestUpdate();
+            logMemoryUsage();
         }
         
         // Switch to periodic 15-minute intervals after the first accelerated sync

@@ -22,12 +22,14 @@ class TideWatchView extends WatchUi.WatchFace {
     function onUpdate(dc as Dc) as Void {
         var tideUnits = Application.Properties.getValue("TideUnits");
         var swellUnits = Application.Properties.getValue("SwellUnits");
-        
         var tideColorIdx = Application.Properties.getValue("TideColor");
         var graphColorIdx = Application.Properties.getValue("GraphColor");
+        var baseColorIdx = Application.Properties.getValue("BaseColor");
+        var showSwellGraph = Application.Properties.getValue("ShowSwellGraph");
 
         var tideColor = getColorFromIndex(tideColorIdx);
         var graphColor = getColorFromIndex(graphColorIdx);
+        var baseColor = getColorFromIndex(baseColorIdx);
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
@@ -36,386 +38,306 @@ class TideWatchView extends WatchUi.WatchFace {
         var height = dc.getHeight();
         var scale = width / 416.0;
 
-        // 1. Draw Time
+        // 1. Draw Time/Battery
         var clockTime = System.getClockTime();
         var timeStr = Lang.format("$1$:$2$", [clockTime.hour.format("%02d"), clockTime.min.format("%02d")]);
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(width / 2, height * 0.24, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Draw Battery
         var stats = System.getSystemStats();
-        drawBattery(dc, width / 2, (height * 0.08).toNumber(), stats.battery);
+        drawBattery(dc, width / 2, (height * 0.08).toNumber(), stats.battery, baseColor);
 
         // 2. Fetch and parse Tide info
-        var tideData = Application.Storage.getValue("tideData");
-        var waveData = Application.Storage.getValue("waveData");
-        var tideError = Application.Storage.getValue("tideError");
+        var tideData = Application.Storage.getValue("tideData") as Array?;
+        var tideTimes = Application.Storage.getValue("tideTimes") as Array?;
+        var tideStartTime = Application.Storage.getValue("tideStartTime") as Number?;
+        var tideInterval = Application.Storage.getValue("tideInterval") as Number?;
+        var tideExtrema = Application.Storage.getValue("tideExtrema") as Array?;
+        var waveData = Application.Storage.getValue("waveData") as Array?;
+        var tideError = Application.Storage.getValue("tideError") as Number?;
         
-        if (tideData == null || !(tideData instanceof Array) || tideData.size() == 0) {
+        if (tideData == null || tideTimes == null || tideStartTime == null || tideInterval == null) {
+            var msg = (tideError != null) ? "Tide Error: " + tideError : "No Tide Data\nWaiting for sync...";
             dc.setColor(tideError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            var msg = tideError != null ? "Tide Sync Error: " + tideError : "No Tide Data\nWaiting for sync...";
             dc.drawText(width / 2, height / 2, Graphics.FONT_SMALL, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
 
-        // Time.now().value() returns the Unix timestamp directly
         var now = Time.now().value();
-        System.println("onUpdate: now=" + now + " tideData size=" + tideData.size());
-        if (tideData.size() > 0) {
-            System.println("First tide item ts: " + (tideData[0] as Dictionary).get("t"));
-            System.println("Last tide item ts: " + (tideData[tideData.size()-1] as Dictionary).get("t"));
+        var currentHeight = 0.0;
+        var isRising = false;
+        var currWaveIdx = -1;
+        
+        if (tideData != null && tideTimes != null && tideTimes.size() == tideData.size()) {
+            var found = false;
+            var tTimesArray = tideTimes as Array;
+            var tDataArray = tideData as Array;
+            for (var i = 0; i < tTimesArray.size() - 1; i++) {
+                var t1 = tTimesArray[i] as Number;
+                var t2 = tTimesArray[i + 1] as Number;
+                if (now >= t1 && now <= t2) {
+                    var h1 = (tDataArray[i] as Number).toFloat() / 100.0;
+                    var h2 = (tDataArray[i + 1] as Number).toFloat() / 100.0;
+                    var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
+                    currentHeight = h1 + (h2 - h1) * ratio;
+                    isRising = h2 > h1;
+                    currWaveIdx = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                if (now < (tTimesArray[0] as Number)) {
+                    currentHeight = (tDataArray[0] as Number).toFloat() / 100.0;
+                    currWaveIdx = 0;
+                } else {
+                    currentHeight = (tDataArray[tDataArray.size() - 1] as Number).toFloat() / 100.0;
+                    currWaveIdx = tDataArray.size() - 1;
+                }
+            }
         }
         
-        var currentTide = null;
-        var nextTide = null;
+
+        // Draw Current Tide Height
+        var dispHeight = currentHeight;
+        var dispUnit = "m";
+        if (tideUnits == 1) {
+            dispHeight = currentHeight * 3.28084;
+            dispUnit = "ft";
+        }
+        var tideNumStr = dispHeight.format("%.2f");
+        var numWidth = dc.getTextWidthInPixels(tideNumStr, Graphics.FONT_NUMBER_MEDIUM);
+        var mWidth = dc.getTextWidthInPixels(dispUnit, Graphics.FONT_MEDIUM);
+        var startX = (width - (numWidth + mWidth)) / 2;
+
+        dc.setColor(tideColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(startX, height * 0.44, Graphics.FONT_NUMBER_MEDIUM, tideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX + numWidth, height * 0.44, Graphics.FONT_MEDIUM, dispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        drawArrow(dc, (startX + numWidth + mWidth + 15 * scale).toNumber(), (height * 0.44).toNumber(), isRising);
+
+        var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
+        var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
+        var dateStr = todayMed.day.format("%d") + " " + todayMed.month;
+        var dowStr = todayLong.day_of_week;
+
+        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(startX - 10 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dowStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Next High/Low
         var nextExtrema = null;
+        if (tideExtrema != null && tideExtrema instanceof Array) {
+            for (var i = 0; i < tideExtrema.size(); i++) {
+                var ext = tideExtrema[i] as Array;
+                if (ext[0] > now) { nextExtrema = ext; break; }
+            }
+        }
+        if (nextExtrema != null) {
+            var extTs = nextExtrema[0] as Number;
+            var extH = (nextExtrema[1] as Number).toFloat() / 100.0;
+            var typeCode = nextExtrema[2];
+            var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
+            var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
+            var extTimeStr = Lang.format("$1$:$2$", [extInfo.hour.format("%02d"), extInfo.min.format("%02d")]);
+            var dispExtH = (tideUnits == 1) ? extH * 3.28084 : extH;
+            var extStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), dispUnit, extTimeStr]);
+            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(width / 2, height * 0.67, Graphics.FONT_XTINY, extStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
 
-        for (var i = 0; i < tideData.size() - 1; i++) {
-            var t1 = tideData[i] as Dictionary;
-            var t2 = tideData[i+1] as Dictionary;
-            var ts1 = t1.get("t") as Number;
-            var ts2 = t2.get("t") as Number;
-            
-            if (ts1 == null || ts2 == null) {
-                // Handle old data or mismatch - clear it and exit to prevent crash
-                Application.Storage.deleteValue("tideData");
-                return;
+        // Swell Section
+        if (waveData != null) {
+            var waveDataArray = waveData as Array;
+            var currentWave = null;
+            if (currWaveIdx >= 0 && currWaveIdx < waveDataArray.size()) {
+                currentWave = waveDataArray[currWaveIdx] as Array;
+            } else if (waveDataArray.size() > 0) {
+                var tTimesArray = tideTimes as Array?;
+                if (tTimesArray != null && tTimesArray.size() > 0 && now < (tTimesArray[0] as Number)) {
+                    currentWave = waveDataArray[0] as Array;
+                } else {
+                    currentWave = waveDataArray[waveDataArray.size() - 1] as Array;
+                }
             }
 
-            if (now >= ts1 && now <= ts2) {
-                currentTide = t1;
-                nextTide = t2;
-                // find next extrema starting from here
-                for (var j = i; j < tideData.size(); j++) {
-                    var tj = tideData[j] as Dictionary;
-                    var type = tj.get("y") as String;
-                    if (tj.get("t") as Number > now && (type.equals("HIGH") || type.equals("LOW"))) {
-                        nextExtrema = tj;
-                        break;
+            if (currentWave != null) {
+                var validSwells = [];
+                for (var s = 0; s < 3; s++) {
+                    var h = (currentWave as Array)[s*3];
+                    if (h != null) {
+                        var hFloat = (h instanceof Number) ? (h as Number).toFloat() / 100.0 : h as Float;
+                        if (hFloat > 0) {
+                            var pVal = (currentWave as Array)[s*3+1];
+                            var pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
+                            var dVal = (currentWave as Array)[s*3+2];
+                            var dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
+                            validSwells.add([hFloat, pValNum, dValFloat]);
+                        }
                     }
                 }
-                break;
+                
+                if (validSwells.size() > 0) {
+                    var totalSwellW = 0;
+                    var arrowW = (10 * scale).toNumber();
+                    var pad = (3 * scale).toNumber();
+                    var sepW = dc.getTextWidthInPixels(" | ", Graphics.FONT_XTINY);
+                    var texts = [];
+                    for (var i = 0; i < validSwells.size(); i++) {
+                        var sv = validSwells[i] as Array;
+                        var hv = sv[0] as Float;
+                        var pv = sv[1] as Number;
+                        var dispH = (swellUnits == 1) ? hv * 3.28084 : hv;
+                        var unit = (swellUnits == 1) ? "ft" : "m";
+                        var sStr = dispH.format("%.1f") + unit + "@" + pv;
+                        texts.add(sStr);
+                        totalSwellW += arrowW + pad + dc.getTextWidthInPixels(sStr, Graphics.FONT_XTINY);
+                    }
+                    totalSwellW += (validSwells.size() - 1) * sepW;
+                    
+                    var curX = (width - totalSwellW) / 2;
+                    var curY = (height * 0.57).toNumber();
+                    for (var i = 0; i < validSwells.size(); i++) {
+                        var sv = validSwells[i] as Array;
+                        drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
+                        curX += arrowW + pad;
+                        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                        dc.drawText(curX, curY, Graphics.FONT_XTINY, texts[i], Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                        curX += dc.getTextWidthInPixels(texts[i], Graphics.FONT_XTINY);
+                        if (i < validSwells.size() - 1) {
+                            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                            dc.drawText(curX, curY, Graphics.FONT_XTINY, " | ", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                            curX += sepW;
+                        }
+                    }
+                } else {
+                    dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(width / 2, height * 0.58, Graphics.FONT_XTINY, "No Swells", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                }
+            }
+        }
+
+        // Graph Section
+        var minH = 9999.0;
+        var maxH = -9999.0;
+        var minT = now;
+        var maxT = now + 16 * 3600;
+
+        var minSwellH = 9999.0;
+        var maxSwellH = -9999.0;
+
+        if (tideData != null && tideTimes != null) {
+            var tTimesArray = tideTimes as Array;
+            var tDataArray = tideData as Array;
+            for (var i = 0; i < tDataArray.size(); i++) {
+                var tTs = tTimesArray[i] as Number;
+                if (tTs >= minT - 3600 && tTs <= maxT + 3600) {
+                    var h = tDataArray[i];
+                    if (h != null) {
+                        var hFloat = (h as Number).toFloat() / 100.0;
+                        if (hFloat < minH) { minH = hFloat; }
+                        if (hFloat > maxH) { maxH = hFloat; }
+                    }
+                }
             }
         }
         
-        if (currentTide == null || nextTide == null) {
-            System.println("Failed to find current/next tide for now=" + now);
+        if (waveData != null && waveData instanceof Array && tideTimes != null) {
+            var wDataArray = waveData as Array;
+            var tTimesArray = tideTimes as Array;
+            for (var i = 0; i < wDataArray.size(); i++) {
+                if (i < tTimesArray.size()) {
+                    var tTs = tTimesArray[i] as Number;
+                    if (tTs >= minT - 3600 && tTs <= maxT + 3600) {
+                        var wPoint = wDataArray[i] as Array;
+                        for (var s = 0; s < 3; s++) {
+                            var hVal = wPoint[s*3];
+                            if (hVal != null) {
+                                var h = (hVal instanceof Number) ? (hVal as Number).toFloat() / 100.0 : hVal as Float;
+                                if (h < minSwellH) { minSwellH = h; }
+                                if (h > maxSwellH) { maxSwellH = h; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (minSwellH == 9999.0) {
+            minSwellH = 0.0;
+            maxSwellH = 1.0;
+        }
+        if (maxSwellH == minSwellH) {
+            maxSwellH = minSwellH + 1.0;
         }
 
-        if (currentTide != null && nextTide != null) {
-            var h1Val = currentTide.get("v");
-            var h2Val = nextTide.get("v");
-            var h1 = (h1Val instanceof Number) ? h1Val.toFloat() : h1Val as Float;
-            var h2 = (h2Val instanceof Number) ? h2Val.toFloat() : h2Val as Float;
-            
-            var ts1 = currentTide.get("t") as Number;
-            var ts2 = nextTide.get("t") as Number;
-            
-            // Interpolate
-            var progress = (now - ts1).toFloat() / (ts2 - ts1).toFloat();
-            var currentHeight = h1 + (h2 - h1) * progress;
-            var isRising = h2 > h1;
+        if (maxH > minH) {
+            var graphY = height * 0.88;
+            var graphHeight = height * 0.18;
+            var graphMargin = width * 0.15;
+            var drawWidth = width - 2 * graphMargin;
 
-            var dispHeight = currentHeight;
-            var dispUnit = "m";
-            if (tideUnits == 1) {
-                dispHeight = currentHeight * 3.28084;
-                dispUnit = "ft";
-            }
-
-            var tideNumStr = dispHeight.format("%.2f");
-            var numWidth = dc.getTextWidthInPixels(tideNumStr, Graphics.FONT_NUMBER_MEDIUM);
-            var mWidth = dc.getTextWidthInPixels(dispUnit, Graphics.FONT_MEDIUM);
-            var totalWidth = numWidth + mWidth;
-            var startX = width / 2 - totalWidth / 2;
-
-            // Center everything nicely
-            // Tide Height
-            dc.setColor(tideColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(startX, height * 0.44, Graphics.FONT_NUMBER_MEDIUM, tideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + numWidth, height * 0.44, Graphics.FONT_MEDIUM, dispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-
-            // Draw arrow next to tide
-            var arrowX = startX + totalWidth + (15 * scale).toNumber();
-            var arrowY = height * 0.44;
-            dc.setColor(isRising ? Graphics.COLOR_GREEN : Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-            drawArrow(dc, arrowX.toNumber(), arrowY.toNumber(), isRising);
-
-            // Draw next extrema
-            if (nextExtrema != null) {
-                var extHVal = nextExtrema.get("v");
-                var extH = (extHVal instanceof Number) ? extHVal.toFloat() : extHVal as Float;
-                var extType = nextExtrema.get("y") as String;
-                var extTs = nextExtrema.get("t") as Number;
-                
-                // Convert Unix timestamp back to Garmin Time.Moment
-                var extTime = new Time.Moment(extTs.toNumber());
-                var extInfo = Gregorian.info(extTime, Time.FORMAT_SHORT);
-                var extTimeStr = Lang.format("$1$:$2$", [extInfo.hour.format("%02d"), extInfo.min.format("%02d")]);
-                
-                var dispExtH = extH;
-                if (tideUnits == 1) {
-                    dispExtH = extH * 3.28084;
-                }
-                var extStr = Lang.format("Next $1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), dispUnit, extTimeStr]);
-                
-                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(width / 2, height * 0.70, Graphics.FONT_XTINY, extStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            }
-
-            // Draw Swell Data
-            if (waveData != null && waveData instanceof Array) {
-                if (waveData.size() > 1) {
-                    var w1 = waveData[0] as Dictionary;
-                    if (w1.get("t") == null) {
-                        // Old data format - clear it
-                        Application.Storage.deleteValue("waveData");
-                        return;
+            // Swell Graph
+            if (showSwellGraph && waveData != null && waveData instanceof Array) {
+                var colors = [Graphics.COLOR_WHITE, Graphics.COLOR_LT_GRAY, Graphics.COLOR_LT_GRAY];
+                var tTimesArray = tideTimes as Array?;
+                for (var s = 0; s < 3; s++) {
+                    var lastSX = -1, lastSY = -1;
+                    var waveDataArray = waveData as Array;
+                    for (var i = 0; i < waveDataArray.size(); i++) {
+                        var wPoint = waveDataArray[i] as Array;
+                        var hVal = wPoint[s*3];
+                        if (hVal == null || tTimesArray == null || i >= tTimesArray.size()) { lastSX = -1; continue; }
+                        var h = (hVal instanceof Number) ? (hVal as Number).toFloat() / 100.0 : hVal as Float;
+                        var wTs = tTimesArray[i] as Number;
+                        var sx = graphMargin + drawWidth * (wTs - minT).toFloat() / (maxT - minT).toFloat();
+                        var sy = graphY - graphHeight * (h - minSwellH) / (maxSwellH - minSwellH);
+                        if (lastSX >= 0 && (sx >= -50 && sx <= width + 50)) {
+                            dc.setColor(colors[s], Graphics.COLOR_TRANSPARENT);
+                            dc.drawLine(lastSX, lastSY, sx.toNumber(), sy.toNumber());
+                            if (s == 0) { dc.drawLine(lastSX, lastSY+1, sx.toNumber(), sy.toNumber()+1); dc.drawLine(lastSX, lastSY-1, sx.toNumber(), sy.toNumber()-1); }
+                        }
+                        lastSX = sx.toNumber(); lastSY = sy.toNumber();
                     }
                 }
-                var currentWave = null;
-                for (var i = 0; i < waveData.size() - 1; i++) {
-                    var w1 = waveData[i] as Dictionary;
-                    var w2 = waveData[i+1] as Dictionary;
-                    var waveTs1 = w1.get("t") as Number;
-                    var waveTs2 = w2.get("t") as Number;
-                    if (now >= waveTs1 && now < waveTs2) {
-                        currentWave = w1;
-                        break;
-                    }
-                }
-                
-                if (currentWave == null && waveData.size() > 0) {
-                    var firstW = waveData[0] as Dictionary;
-                    if (now < (firstW.get("t") as Number)) {
-                        currentWave = firstW; // fallback to first if before
+            }
+
+            // Tide Graph
+            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
+            var lastX = -1, lastY = -1;
+            if (tideData != null && tideTimes != null) {
+                var tTimesArray = tideTimes as Array;
+                var tDataArray = tideData as Array;
+                for (var i = 0; i < tDataArray.size(); i++) {
+                    var tTs = tTimesArray[i] as Number;
+                    var x = graphMargin + drawWidth * (tTs - minT).toFloat() / (maxT - minT).toFloat();
+                    var hVal = tDataArray[i];
+                    if (hVal != null) {
+                        var hFloat = (hVal as Number).toFloat() / 100.0;
+                        var y = graphY - graphHeight * (hFloat - minH) / (maxH - minH);
+                        if (lastX >= 0 && (x >= -50 && x <= width + 50)) {
+                            dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
+                            dc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
+                        }
+                        lastX = x.toNumber(); lastY = y.toNumber();
                     } else {
-                        currentWave = waveData[waveData.size() - 1]; // fallback to last if beyond
-                    }
-                }
-                
-                if (currentWave != null) {
-                    var cw = currentWave as Dictionary;
-                    var waveH1 = cw.get("1h");
-                    var waveP1 = cw.get("1p");
-                    var waveH2 = cw.get("2h");
-                    var waveP2 = cw.get("2p");
-                    var waveH3 = cw.get("3h");
-                    var waveP3 = cw.get("3p");
-                        var waveD1 = cw.get("1d");
-                        var waveD2 = cw.get("2d");
-                        var waveD3 = cw.get("3d");
-                        
-                        var validSwells = new Array<Array<Lang.Numeric>>[3];
-                        var count = 0;
-                        if (waveH1 != null && waveP1 != null && waveD1 != null && (waveH1 as Lang.Numeric) > 0 && (waveP1 as Lang.Numeric) > 0) {
-                            validSwells[count] = [waveH1 as Lang.Numeric, waveP1 as Lang.Numeric, waveD1 as Lang.Numeric];
-                            count++;
-                        }
-                        if (waveH2 != null && waveP2 != null && waveD2 != null && (waveH2 as Lang.Numeric) > 0 && (waveP2 as Lang.Numeric) > 0) {
-                            validSwells[count] = [waveH2 as Lang.Numeric, waveP2 as Lang.Numeric, waveD2 as Lang.Numeric];
-                            count++;
-                        }
-                        if (waveH3 != null && waveP3 != null && waveD3 != null && (waveH3 as Lang.Numeric) > 0 && (waveP3 as Lang.Numeric) > 0) {
-                            validSwells[count] = [waveH3 as Lang.Numeric, waveP3 as Lang.Numeric, waveD3 as Lang.Numeric];
-                            count++;
-                        }
-                        
-                        if (count > 0) {
-                            var swellTotalWidth = 0;
-                            var parts = new Array<String>[count];
-                            var arrowWidth = (10 * scale).toNumber();
-                            var arrowPad = (3 * scale).toNumber();
-                            var sepStr = " | ";
-                            var sepWidth = dc.getTextWidthInPixels(sepStr, Graphics.FONT_XTINY);
-                            
-                            for (var i = 0; i < count; i++) {
-                                var swell = validSwells[i] as Array<Lang.Numeric>;
-                                var hVal = swell[0]; var pVal = swell[1];
-                                var hv = (hVal instanceof Number) ? hVal.toFloat() : hVal as Float;
-                                var pv = (pVal instanceof Number) ? pVal.toNumber() : pVal as Number;
-                                
-                                var dispSwellH = hv;
-                                var dispSwellUnit = "m";
-                                if (swellUnits == 1) { // Feet requested
-                                    dispSwellH = hv * 3.28084;
-                                    dispSwellUnit = "ft";
-                                }
-                                
-                                var str = dispSwellH.format("%.1f") + dispSwellUnit + "@" + pv;
-                                parts[i] = str;
-                                swellTotalWidth += arrowWidth + arrowPad + dc.getTextWidthInPixels(str, Graphics.FONT_XTINY);
-                            }
-                            swellTotalWidth += (count - 1) * sepWidth;
-                            
-                            var currentX = (width / 2.0 - swellTotalWidth / 2.0).toNumber();
-                            var currentY = (height * 0.58).toNumber();
-                            
-                            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                            for (var i = 0; i < count; i++) {
-                                var swell = validSwells[i] as Array<Lang.Numeric>;
-                                var dVal = swell[2];
-                                var dir = (dVal instanceof Number) ? dVal.toFloat() : dVal as Float;
-                                
-                                drawSwellArrow(dc, currentX + arrowWidth/2, currentY, dir);
-                                currentX += arrowWidth + arrowPad;
-                                
-                                dc.drawText(currentX, currentY, Graphics.FONT_XTINY, parts[i], Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                                currentX += dc.getTextWidthInPixels(parts[i], Graphics.FONT_XTINY);
-                                
-                                if (i < count - 1) {
-                                    dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                                    dc.drawText(currentX, currentY, Graphics.FONT_XTINY, sepStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                                    dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                                    currentX += sepWidth;
-                                }
-                            }
-                        } else {
-                            // Show placeholder so we know if there is no valid swell array inside the wave spot
-                            dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-                            dc.drawText(width / 2, height * 0.58, Graphics.FONT_XTINY, "No Swells Right Now", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-                        }
-                }
-            } else {
-                var waveError = Application.Storage.getValue("waveError");
-                var msg = waveError != null ? "Swell Sync Error: " + waveError : "Waiting for swell data...";
-                dc.setColor(waveError != null ? Graphics.COLOR_RED : Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(width / 2, height * 0.58, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            }
-
-            // Draw Tide Graph
-            if (tideData.size() > 1) {
-                var minH = 9999.0;
-                var maxH = -9999.0;
-                var minT = now;
-                var maxT = now + 16 * 3600; // Next 16 hours
-
-                for (var i = 0; i < tideData.size(); i++) {
-                    var tj = tideData[i] as Dictionary;
-                    var tTs = tj.get("t") as Number;
-                    // Only consider points roughly within the next 16h to scale the height properly
-                    if (tTs >= minT - 3600 && tTs <= maxT + 3600) {
-                        var hVal = tj.get("v");
-                        var h = (hVal instanceof Number) ? hVal.toFloat() : hVal as Float;
-                        if (h < minH) { minH = h; }
-                        if (h > maxH) { maxH = h; }
-                    }
-                }
-
-                if (maxH > minH && maxT > minT) {
-                    var graphY = height * 0.88; // Bottom of graph
-                    var graphHeight = height * 0.18; // Top of graph is 0.70, slightly overlapping 0.70 text 
-                    var graphMargin = width * 0.15; // 15% margin on sides so the current time is not clipped
-                    var drawWidth = width - 2 * graphMargin;
-                    
-                    // Draw Swell Graph (quantitative, 0-4m scale)
-                    if (waveData != null && waveData instanceof Array && waveData.size() > 1) {
-                        var swellColors = [Graphics.COLOR_WHITE, Graphics.COLOR_LT_GRAY, Graphics.COLOR_LT_GRAY];
-                        var swellKeys = ["1h", "2h", "3h"];
-                        
-                        for (var s = 0; s < 3; s++) {
-                            var key = swellKeys[s];
-                            var lastSX = -1;
-                            var lastSY = -1;
-                            
-                            for (var i = 0; i < waveData.size(); i++) {
-                                var wj = waveData[i] as Dictionary;
-                                var wTsVal = wj.get("t");
-                                if (wTsVal == null) { continue; }
-                                
-                                var wTs = 0L;
-                                if (wTsVal has :toLong) { wTs = wTsVal.toLong(); }
-                                else if (wTsVal instanceof Number) { wTs = wTsVal.toLong(); }
-                                else { continue; }
-                                
-                                var hVal = wj.get(key);
-                                if (hVal == null) { 
-                                    lastSX = -1; // Gap in data
-                                    continue; 
-                                }
-                                
-                                var h = 0.0;
-                                if (hVal has :toFloat) { h = hVal.toFloat(); }
-                                else if (hVal instanceof Number) { h = hVal.toFloat(); }
-                                else { h = hVal as Float; }
-                                
-                                var isMaxed = h > 4.0;
-                                if (isMaxed) { h = 4.0; }
-                                
-                                // Calculate position relative to now (minT) and 16h window
-                                var sx = graphMargin + drawWidth * (wTs - minT).toFloat() / (maxT - minT).toFloat();
-                                var sy = graphY - graphHeight * (h / 4.0);
-                                
-                                var sxi = sx.toNumber();
-                                var syi = sy.toNumber();
-                                
-                                // Draw trend line
-                                if (lastSX >= 0 && (sx >= -50 && sx <= width + 50)) {
-                                    dc.setColor(isMaxed ? Graphics.COLOR_RED : swellColors[s], Graphics.COLOR_TRANSPARENT);
-                                    dc.drawLine(lastSX, lastSY, sxi, syi);
-                                    if (s == 0) { // Thicker primary swell
-                                        dc.drawLine(lastSX, lastSY + 1, sxi, syi + 1);
-                                        dc.drawLine(lastSX, lastSY - 1, sxi, syi - 1);
-                                    }
-                                }
-                                
-                                // Debug: visible index for each point to confirm they exist
-                                if (s == 0 && sx >= graphMargin && sx <= width - graphMargin) {
-                                    dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_TRANSPARENT);
-                                    dc.drawText(sxi, syi - 10, Graphics.FONT_XTINY, i.toString(), Graphics.TEXT_JUSTIFY_CENTER);
-                                }
-                                
-                                lastSX = sxi;
-                                lastSY = syi;
-                            }
-                        }
-                    }
-
-                    // Draw Tide Graph
-                    dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
-                    var lastX = -1;
-                    var lastY = -1;
-                    
-                    for (var i = 0; i < tideData.size(); i++) {
-                        var tj = tideData[i] as Dictionary;
-                        var tTs = tj.get("t") as Number;
-                        var hVal = tj.get("v");
-                        var h = (hVal instanceof Number) ? hVal.toFloat() : hVal as Float;
-                        
-                        var x = graphMargin + drawWidth * (tTs - minT).toFloat() / (maxT - minT).toFloat();
-                        var y = graphY - graphHeight * (h - minH) / (maxH - minH);
-                        
-                        var xi = x.toNumber();
-                        var yi = y.toNumber();
-                        
-                        if (lastX >= 0) {
-                            dc.drawLine(lastX, lastY, xi, yi);
-                            dc.drawLine(lastX, lastY+1, xi, yi+1); // thicker 
-                        }
-                        lastX = xi;
-                        lastY = yi;
-                    }
-                    
-                    // Draw current time marker on the graph
-                    var nowX = graphMargin + drawWidth * (now - minT).toFloat() / (maxT - minT).toFloat();
-                    if (nowX >= 0 && nowX <= width) {
-                        dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-                        dc.fillCircle(nowX.toNumber(), (graphY - graphHeight * (currentHeight - minH) / (maxH - minH)).toNumber(), 3);
+                        lastX = -1; // Gap in data
                     }
                 }
             }
 
-            // Draw Spot Name at the bottom
-            var spotNameStr = Application.Storage.getValue("spotName");
-            if (spotNameStr != null && spotNameStr instanceof String) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, spotNameStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            // Current Time Marker
+            var nowX = graphMargin + drawWidth * (now - minT).toFloat() / (maxT - minT).toFloat();
+            if (nowX >= 0 && nowX <= width) {
+                dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+                var markerY = graphY - graphHeight * (currentHeight - minH) / (maxH - minH);
+                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), 3);
             }
+        }
 
-        } else {
-            var msg = tideError != null ? "Tide Error: " + tideError : "Tide Data Old\nWaiting for sync...";
-            dc.setColor(tideError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height / 2, Graphics.FONT_SMALL, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Spot Name
+        var spotName = Application.Storage.getValue("spotName");
+        if (spotName != null) {
+            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, spotName, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 
@@ -423,9 +345,12 @@ class TideWatchView extends WatchUi.WatchFace {
         var s = dc.getWidth() / 416.0;
         var sz = (8 * s).toNumber();
         var pts;
+        
         if (isRising) {
+            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_TRANSPARENT);
             pts = [[x, y - sz], [x - sz, y + sz], [x + sz, y + sz]]; // Up Arrow
         } else {
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
             pts = [[x, y + sz], [x - sz, y - sz], [x + sz, y - sz]]; // Down Arrow
         }
         dc.fillPolygon(pts as Array<[Lang.Numeric, Lang.Numeric]>);
@@ -455,7 +380,7 @@ class TideWatchView extends WatchUi.WatchFace {
         dc.fillPolygon(pts as Array<[Lang.Numeric, Lang.Numeric]>);
     }
 
-    function drawBattery(dc as Dc, x as Number, y as Number, battery as Float) as Void {
+    function drawBattery(dc as Dc, x as Number, y as Number, battery as Float, colorPrimary as Number) as Void {
         var s = dc.getWidth() / 416.0;
         var width = (24 * s).toNumber();
         var height = (12 * s).toNumber();
@@ -467,7 +392,7 @@ class TideWatchView extends WatchUi.WatchFace {
             fillWidth = 0;
         }
 
-        var color = Graphics.COLOR_WHITE;
+        var color = colorPrimary;
         if (battery < 10.0) {
             color = Graphics.COLOR_RED;
         } else if (battery < 20.0) {
@@ -508,6 +433,13 @@ class TideWatchView extends WatchUi.WatchFace {
         if (idx == 3) { return Graphics.COLOR_GREEN; }
         if (idx == 4) { return Graphics.COLOR_WHITE; }
         if (idx == 5) { return Graphics.COLOR_YELLOW; }
+        if (idx == 6) { return Graphics.COLOR_ORANGE; }
+        if (idx == 7) { return Graphics.COLOR_PURPLE; }
+        if (idx == 8) { return Graphics.COLOR_LT_GRAY; }
+        if (idx == 9) { return Graphics.COLOR_DK_GRAY; }
+        if (idx == 10) { return 0x55AAFF; } // Light Blue
+        if (idx == 11) { return 0x005F6B; } // Petrol
+        if (idx == 12) { return 0x00CCCC; } // Turquoise
         return Graphics.COLOR_BLUE; // Default/0
     }
 }

@@ -1,0 +1,73 @@
+<resources>
+    <settings>
+        <setting propertyKey="@Properties.SpotId" title="@Strings.SpotIdTitle" prompt="@Strings.SpotIdPrompt">
+            <settingConfig type="alphaNumeric" />
+        </setting>
+        <setting propertyKey="@Properties.TideUnits" title="@Strings.TideUnitsTitle">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.UnitsMeters</listEntry>
+                <listEntry value="1">@Strings.UnitsFeet</listEntry>
+            </settingConfig>
+        </setting>
+        <setting propertyKey="@Properties.SwellUnits" title="@Strings.SwellUnitsTitle">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.UnitsMeters</listEntry>
+                <listEntry value="1">@Strings.UnitsFeet</listEntry>
+            </settingConfig>
+        </setting>
+        <setting propertyKey="@Properties.TideColor" title="@Strings.TideColorTitle">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.ColorBlue</listEntry>
+                <listEntry value="1">@Strings.ColorPink</listEntry>
+                <listEntry value="2">@Strings.ColorRed</listEntry>
+                <listEntry value="3">@Strings.ColorGreen</listEntry>
+                <listEntry value="4">@Strings.ColorWhite</listEntry>
+                <listEntry value="5">@Strings.ColorYellow</listEntry>
+                <listEntry value="6">@Strings.ColorOrange</listEntry>
+                <listEntry value="7">@Strings.ColorPurple</listEntry>
+                <listEntry value="8">@Strings.ColorLtGray</listEntry>
+                <listEntry value="9">@Strings.ColorDkGray</listEntry>
+                <listEntry value="10">@Strings.ColorLightBlue</listEntry>
+                <listEntry value="11">@Strings.ColorPetrol</listEntry>
+                <listEntry value="12">@Strings.ColorTurquoise</listEntry>
+            </settingConfig>
+        </setting>
+        <setting propertyKey="@Properties.GraphColor" title="@Strings.GraphColorTitle">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.ColorBlue</listEntry>
+                <listEntry value="1">@Strings.ColorPink</listEntry>
+                <listEntry value="2">@Strings.ColorRed</listEntry>
+                <listEntry value="3">@Strings.ColorGreen</listEntry>
+                <listEntry value="4">@Strings.ColorWhite</listEntry>
+                <listEntry value="5">@Strings.ColorYellow</listEntry>
+                <listEntry value="6">@Strings.ColorOrange</listEntry>
+                <listEntry value="7">@Strings.ColorPurple</listEntry>
+                <listEntry value="8">@Strings.ColorLtGray</listEntry>
+                <listEntry value="9">@Strings.ColorDkGray</listEntry>
+                <listEntry value="10">@Strings.ColorLightBlue</listEntry>
+                <listEntry value="11">@Strings.ColorPetrol</listEntry>
+                <listEntry value="12">@Strings.ColorTurquoise</listEntry>
+            </settingConfig>
+        </setting>
+        <setting propertyKey="@Properties.BaseColor" title="@Strings.BaseColorTitle">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.ColorBlue</listEntry>
+                <listEntry value="1">@Strings.ColorPink</listEntry>
+                <listEntry value="2">@Strings.ColorRed</listEntry>
+                <listEntry value="3">@Strings.ColorGreen</listEntry>
+                <listEntry value="4">@Strings.ColorWhite</listEntry>
+                <listEntry value="5">@Strings.ColorYellow</listEntry>
+                <listEntry value="6">@Strings.ColorOrange</listEntry>
+                <listEntry value="7">@Strings.ColorPurple</listEntry>
+                <listEntry value="8">@Strings.ColorLtGray</listEntry>
+                <listEntry value="9">@Strings.ColorDkGray</listEntry>
+                <listEntry value="10">@Strings.ColorLightBlue</listEntry>
+                <listEntry value="11">@Strings.ColorPetrol</listEntry>
+                <listEntry value="12">@Strings.ColorTurquoise</listEntry>
+            </settingConfig>
+        </setting>
+        <setting propertyKey="@Properties.ShowSwellGraph" title="@Strings.ShowSwellGraphTitle">
+            <settingConfig type="boolean" />
+        </setting>
+    </settings>
+</resources>
