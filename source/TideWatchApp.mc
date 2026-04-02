@@ -74,6 +74,12 @@ class TideWatchApp extends Application.AppBase {
             if (data.hasKey(DataKeys.TIDE_ERROR)) { // TIDE_ERROR = Tide error code
                 Application.Storage.setValue("tideError", data.get(DataKeys.TIDE_ERROR));
             }
+            if (data.hasKey(DataKeys.TIDE_UNIT)) {
+                Application.Storage.setValue("tideUnitApi", data.get(DataKeys.TIDE_UNIT));
+            }
+            if (data.hasKey(DataKeys.SWELL_UNIT)) {
+                Application.Storage.setValue("swellUnitApi", data.get(DataKeys.SWELL_UNIT));
+            }
             WatchUi.requestUpdate();
             logMemoryUsage();
         }

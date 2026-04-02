@@ -7,5 +7,6 @@
         <property id="GraphColor" type="number">0</property> <!-- 0: Blue, 1: Pink, 2: Red, 3: Green, 4: White, 5: Yellow -->
         <property id="ShowSwellGraph" type="boolean">false</property>
         <property id="BaseColor" type="number">4</property> <!-- 4: White -->
+        <property id="ShowDate" type="boolean">true</property>
     </properties>
 </resources>

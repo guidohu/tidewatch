@@ -66,6 +66,9 @@
                 <listEntry value="12">@Strings.ColorTurquoise</listEntry>
             </settingConfig>
         </setting>
+        <setting propertyKey="@Properties.ShowDate" title="@Strings.ShowDateTitle">
+            <settingConfig type="boolean" />
+        </setting>
         <setting propertyKey="@Properties.ShowSwellGraph" title="@Strings.ShowSwellGraphTitle">
             <settingConfig type="boolean" />
         </setting>

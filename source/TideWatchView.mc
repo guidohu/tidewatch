@@ -22,10 +22,15 @@ class TideWatchView extends WatchUi.WatchFace {
     function onUpdate(dc as Dc) as Void {
         var tideUnits = Application.Properties.getValue("TideUnits");
         var swellUnits = Application.Properties.getValue("SwellUnits");
+        var targetTideUnit = (tideUnits == 1) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var targetSwellUnit = (swellUnits == 1) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
         var tideColorIdx = Application.Properties.getValue("TideColor");
         var graphColorIdx = Application.Properties.getValue("GraphColor");
         var baseColorIdx = Application.Properties.getValue("BaseColor");
         var showSwellGraph = Application.Properties.getValue("ShowSwellGraph");
+        var showDate = Application.Properties.getValue("ShowDate");
+        var tideUnitApi = Application.Storage.getValue("tideUnitApi") as Number?;
+        var swellUnitApi = Application.Storage.getValue("swellUnitApi") as Number?;
 
         var tideColor = getColorFromIndex(tideColorIdx);
         var graphColor = getColorFromIndex(graphColorIdx);
@@ -76,8 +81,8 @@ class TideWatchView extends WatchUi.WatchFace {
                 var t1 = tTimesArray[i] as Number;
                 var t2 = tTimesArray[i + 1] as Number;
                 if (now >= t1 && now <= t2) {
-                    var h1 = (tDataArray[i] as Number).toFloat() / 100.0;
-                    var h2 = (tDataArray[i + 1] as Number).toFloat() / 100.0;
+                    var h1 = convertHeight(tDataArray[i] as Number, tideUnitApi, DataKeys.UNIT_METER); // Convert to Meters for internal calc
+                    var h2 = convertHeight(tDataArray[i + 1] as Number, tideUnitApi, DataKeys.UNIT_METER);
                     var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
                     currentHeight = h1 + (h2 - h1) * ratio;
                     isRising = h2 > h1;
@@ -88,10 +93,10 @@ class TideWatchView extends WatchUi.WatchFace {
             }
             if (!found) {
                 if (now < (tTimesArray[0] as Number)) {
-                    currentHeight = (tDataArray[0] as Number).toFloat() / 100.0;
+                    currentHeight = convertHeight(tDataArray[0] as Number, tideUnitApi, DataKeys.UNIT_METER);
                     currWaveIdx = 0;
                 } else {
-                    currentHeight = (tDataArray[tDataArray.size() - 1] as Number).toFloat() / 100.0;
+                    currentHeight = convertHeight(tDataArray[tDataArray.size() - 1] as Number, tideUnitApi, DataKeys.UNIT_METER);
                     currWaveIdx = tDataArray.size() - 1;
                 }
             }
@@ -99,12 +104,8 @@ class TideWatchView extends WatchUi.WatchFace {
         
 
         // Draw Current Tide Height
-        var dispHeight = currentHeight;
-        var dispUnit = "m";
-        if (tideUnits == 1) {
-            dispHeight = currentHeight * 3.28084;
-            dispUnit = "ft";
-        }
+        var dispHeight = convertHeight((currentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
+        var dispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
         var tideNumStr = dispHeight.format("%.2f");
         var numWidth = dc.getTextWidthInPixels(tideNumStr, Graphics.FONT_NUMBER_MEDIUM);
         var mWidth = dc.getTextWidthInPixels(dispUnit, Graphics.FONT_MEDIUM);
@@ -120,9 +121,11 @@ class TideWatchView extends WatchUi.WatchFace {
         var dateStr = todayMed.day.format("%d") + " " + todayMed.month;
         var dowStr = todayLong.day_of_week;
 
-        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(startX - 10 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dowStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (showDate) {
+            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(startX - 10 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, dowStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
 
         // Next High/Low
         var nextExtrema = null;
@@ -134,12 +137,12 @@ class TideWatchView extends WatchUi.WatchFace {
         }
         if (nextExtrema != null) {
             var extTs = nextExtrema[0] as Number;
-            var extH = (nextExtrema[1] as Number).toFloat() / 100.0;
+            var rawExtH = nextExtrema[1] as Number;
             var typeCode = nextExtrema[2];
             var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
             var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
             var extTimeStr = Lang.format("$1$:$2$", [extInfo.hour.format("%02d"), extInfo.min.format("%02d")]);
-            var dispExtH = (tideUnits == 1) ? extH * 3.28084 : extH;
+            var dispExtH = convertHeight(rawExtH, tideUnitApi, targetTideUnit);
             var extStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), dispUnit, extTimeStr]);
             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(width / 2, height * 0.67, Graphics.FONT_XTINY, extStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -165,13 +168,13 @@ class TideWatchView extends WatchUi.WatchFace {
                 for (var s = 0; s < 3; s++) {
                     var h = (currentWave as Array)[s*3];
                     if (h != null) {
-                        var hFloat = (h instanceof Number) ? (h as Number).toFloat() / 100.0 : h as Float;
-                        if (hFloat > 0) {
+                        var hvRaw = h as Number;
+                        if (hvRaw > 0) {
                             var pVal = (currentWave as Array)[s*3+1];
                             var pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
                             var dVal = (currentWave as Array)[s*3+2];
                             var dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
-                            validSwells.add([hFloat, pValNum, dValFloat]);
+                            validSwells.add([hvRaw, pValNum, dValFloat]);
                         }
                     }
                 }
@@ -184,10 +187,10 @@ class TideWatchView extends WatchUi.WatchFace {
                     var texts = [];
                     for (var i = 0; i < validSwells.size(); i++) {
                         var sv = validSwells[i] as Array;
-                        var hv = sv[0] as Float;
+                        var hvRaw = sv[0] as Number;
                         var pv = sv[1] as Number;
-                        var dispH = (swellUnits == 1) ? hv * 3.28084 : hv;
-                        var unit = (swellUnits == 1) ? "ft" : "m";
+                        var dispH = convertHeight(hvRaw, swellUnitApi, targetSwellUnit);
+                        var unit = (targetSwellUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
                         var sStr = dispH.format("%.1f") + unit + "@" + pv;
                         texts.add(sStr);
                         totalSwellW += arrowW + pad + dc.getTextWidthInPixels(sStr, Graphics.FONT_XTINY);
@@ -233,7 +236,7 @@ class TideWatchView extends WatchUi.WatchFace {
                 if (tTs >= minT - 3600 && tTs <= maxT + 3600) {
                     var h = tDataArray[i];
                     if (h != null) {
-                        var hFloat = (h as Number).toFloat() / 100.0;
+                        var hFloat = convertHeight(h as Number, tideUnitApi, DataKeys.UNIT_METER); // Internal metric for graph min/max
                         if (hFloat < minH) { minH = hFloat; }
                         if (hFloat > maxH) { maxH = hFloat; }
                     }
@@ -252,7 +255,7 @@ class TideWatchView extends WatchUi.WatchFace {
                         for (var s = 0; s < 3; s++) {
                             var hVal = wPoint[s*3];
                             if (hVal != null) {
-                                var h = (hVal instanceof Number) ? (hVal as Number).toFloat() / 100.0 : hVal as Float;
+                                var h = convertHeight(hVal as Number, swellUnitApi, DataKeys.UNIT_METER);
                                 if (h < minSwellH) { minSwellH = h; }
                                 if (h > maxSwellH) { maxSwellH = h; }
                             }
@@ -286,7 +289,7 @@ class TideWatchView extends WatchUi.WatchFace {
                         var wPoint = waveDataArray[i] as Array;
                         var hVal = wPoint[s*3];
                         if (hVal == null || tTimesArray == null || i >= tTimesArray.size()) { lastSX = -1; continue; }
-                        var h = (hVal instanceof Number) ? (hVal as Number).toFloat() / 100.0 : hVal as Float;
+                        var h = convertHeight(hVal as Number, swellUnitApi, DataKeys.UNIT_METER);
                         var wTs = tTimesArray[i] as Number;
                         var sx = graphMargin + drawWidth * (wTs - minT).toFloat() / (maxT - minT).toFloat();
                         var sy = graphY - graphHeight * (h - minSwellH) / (maxSwellH - minSwellH);
@@ -311,7 +314,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     var x = graphMargin + drawWidth * (tTs - minT).toFloat() / (maxT - minT).toFloat();
                     var hVal = tDataArray[i];
                     if (hVal != null) {
-                        var hFloat = (hVal as Number).toFloat() / 100.0;
+                        var hFloat = convertHeight(hVal as Number, tideUnitApi, DataKeys.UNIT_METER);
                         var y = graphY - graphHeight * (hFloat - minH) / (maxH - minH);
                         if (lastX >= 0 && (x >= -50 && x <= width + 50)) {
                             dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
@@ -441,5 +444,23 @@ class TideWatchView extends WatchUi.WatchFace {
         if (idx == 11) { return 0x005F6B; } // Petrol
         if (idx == 12) { return 0x00CCCC; } // Turquoise
         return Graphics.COLOR_BLUE; // Default/0
+    }
+
+    function convertHeight(rawValue as Number, apiUnit as Number?, targetUnit as Number) as Float {
+        if (targetUnit != DataKeys.UNIT_METER && targetUnit != DataKeys.UNIT_FEET) {
+            System.error("Invalid target unit: " + targetUnit);
+        }
+        var valFloat = rawValue.toFloat() / 100.0;
+        if (apiUnit == null) { return valFloat; } // Assume already correct if unknown
+        
+        // API is Meters (18), Target is Feet (19)
+        if (apiUnit == DataKeys.UNIT_METER && targetUnit == DataKeys.UNIT_FEET) {
+            return valFloat * 3.28084;
+        }
+        // API is Feet (19), Target is Meters (18)
+        if (apiUnit == DataKeys.UNIT_FEET && targetUnit == DataKeys.UNIT_METER) {
+            return valFloat / 3.28084;
+        }
+        return valFloat;
     }
 }
