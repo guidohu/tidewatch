@@ -1,6 +1,8 @@
 <resources>
     <properties>
+        <property id="LocationMode" type="number">0</property> <!-- 0: Spot ID, 1: GPS -->
         <property id="SpotId" type="string">6269dc2c491aa9ad66235f52</property> <!-- default to Pererenan -->
+        <property id="GpsCoordinates" type="string">-8.65,115.12</property> <!-- default to Canggu coords -->
         <property id="TideUnits" type="number">0</property> <!-- 0: Meters, 1: Feet -->
         <property id="SwellUnits" type="number">1</property> <!-- 0: Meters, 1: Feet -->
         <property id="TideColor" type="number">0</property> <!-- 0: Blue, 1: Pink, 2: Red, 3: Green, 4: White, 5: Yellow -->

@@ -11,7 +11,7 @@ If you like this watch face, please consider supporting its development:
 ## Key Features
 
 - **Tide & Swell Graphs**: High-resolution graphs that visualize tide and optional swell height trends over time.
-- **Surfline Integration**: Pulls accurate data using a Surfline Spot ID.
+- **Surfline Integration**: Pulls accurate data using either a Surfline Spot ID or by automatically finding the closest spot to your GPS Coordinates.
 - **Customizable Units**: Toggle between Metric (Meters) and Imperial (Feet) for tide and swell heights.
 - **Rich Personalization**:
   - Choose from a wide palette of colors for tide height, the tide graph, and base text.
@@ -23,7 +23,7 @@ If you like this watch face, please consider supporting its development:
 ## Configuration
 
 To set up Tide Watch:
-1.  **Surfline Spot ID**: Find the Spot ID for your location on Surfline.com and enter it in the watch face settings via Garmin Connect IQ.
+1.  **Location/Spot**: Select your "Location Mode" (either `Surfline Spot ID` or `GPS Coordinates`). Then enter either the Spot ID or your Lat,Lon coordinates (e.g., `-8.65,115.12`) in the watch face settings via Garmin Connect IQ.
 2.  **Units**: Select your preferred units for tide and swell heights.
 3.  **Colors**: Personalize the appearance by choosing colors for the graph and text elements.
 

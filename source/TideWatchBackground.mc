@@ -25,6 +25,8 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     var mResult as Dictionary? = null;
     var mSpotId = null;
+    var mTargetLat = null;
+    var mTargetLon = null;
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -39,6 +41,28 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function onTemporalEvent() as Void {
         mResult = {};
+        
+        var mode = Application.Properties.getValue("LocationMode");
+        if (mode != null && mode == DataKeys.LOCATION_MODE_GPS) {
+            var gpsStr = Application.Properties.getValue("GpsCoordinates");
+            if (gpsStr != null && gpsStr instanceof String) {
+                var commaIdx = gpsStr.find(",");
+                if (commaIdx != null) {
+                    var latStr = gpsStr.substring(0, commaIdx);
+                    var lonStr = gpsStr.substring(commaIdx + 1, gpsStr.length());
+                    mTargetLat = latStr.toFloat();
+                    mTargetLon = lonStr.toFloat();
+                    
+                    if (mTargetLat != null && mTargetLon != null) {
+                        logMemoryUsage();
+                        makeMapviewRequest();
+                        System.println("onTemporalEvent() done (mapview path).");
+                        return;
+                    }
+                }
+            }
+        }
+        
         mSpotId = Application.Properties.getValue("SpotId");
         if (mSpotId == null || mSpotId.equals("")) {
             mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
@@ -49,6 +73,80 @@ class TideWatchBackground extends System.ServiceDelegate {
         logMemoryUsage();
         makeTideRequest();
         System.println("onTemporalEvent() done.");
+    }
+
+    function makeMapviewRequest() as Void {
+        var distance = 0.005; // +/- 0.005 degrees bounding box (~1km)
+        var south = mTargetLat - distance;
+        var north = mTargetLat + distance;
+        var west = mTargetLon - distance;
+        var east = mTargetLon + distance;
+        
+        var url = "https://services.surfline.com/kbyg/mapview?south=" + south + "&north=" + north + "&west=" + west + "&east=" + east;
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+        };
+        System.println("Background: Requesting Mapview spots from: " + url);
+        Communications.makeWebRequest(url, null, options, method(:onReceiveMapviewResponse));
+    }
+
+    function onReceiveMapviewResponse(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Background: Mapview response code: " + responseCode);
+        logMemoryUsage();
+        
+        if (responseCode == 200 && data != null && data instanceof Dictionary) {
+            var dataObj = data.get("data");
+            if (dataObj != null && dataObj instanceof Dictionary) {
+                var spots = dataObj.get("spots");
+                if (spots != null && spots instanceof Array && spots.size() > 0) {
+                    var closestSpotId = null;
+                    var minDistanceSq = 999999.0;
+                    
+                    for (var i = 0; i < spots.size(); i++) {
+                        var spot = spots[i] as Dictionary;
+                        var sLat = spot.get("lat");
+                        var sLon = spot.get("lon");
+                        if (sLat != null && sLon != null) {
+                            var sLatF = 0.0;
+                            if (sLat instanceof Float) { sLatF = sLat; }
+                            else if (sLat instanceof Double) { sLatF = sLat.toFloat(); }
+                            else if (sLat instanceof Number) { sLatF = sLat.toFloat(); }
+                            
+                            var sLonF = 0.0;
+                            if (sLon instanceof Float) { sLonF = sLon; }
+                            else if (sLon instanceof Double) { sLonF = sLon.toFloat(); }
+                            else if (sLon instanceof Number) { sLonF = sLon.toFloat(); }
+                            
+                            var dLat = sLatF - mTargetLat;
+                            var dLon = sLonF - mTargetLon;
+                            var distSq = dLat * dLat + dLon * dLon;
+                            
+                            if (distSq < minDistanceSq) {
+                                minDistanceSq = distSq;
+                                closestSpotId = spot.get("_id");
+                            }
+                        }
+                    }
+                    
+                    if (closestSpotId != null && closestSpotId instanceof String) {
+                        mSpotId = closestSpotId;
+                        System.println("Found closest spot: " + mSpotId);
+                        data = null; // Free memory
+                        makeTideRequest();
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Fallback to configured Spot ID if Mapview fails or finds no spots
+        mSpotId = Application.Properties.getValue("SpotId");
+        if (mSpotId == null || mSpotId.equals("")) {
+            mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
+        }
+        data = null;
+        makeTideRequest();
     }
 
     function makeTideRequest() as Void {
