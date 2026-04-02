@@ -4,7 +4,9 @@ Tide Watch is a powerful and customizable Garmin watch face designed for surfers
 
 ![Tide Watch Screenshot](img/Screenshot.png)
 
-<iframe src="https://github.com/sponsors/guidohu/button" title="Sponsor this Work" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+If you like this watch face, please consider supporting its development:
+
+[![Sponsor this Work](https://img.shields.io/badge/Sponsor_this_Work-guidohu-orange?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/guidohu)
 
 ## Key Features
 
