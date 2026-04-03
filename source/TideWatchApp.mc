@@ -83,6 +83,7 @@ class TideWatchApp extends Application.AppBase {
             if (data.hasKey("NearbySpots")) {
                 Application.Storage.setValue("NearbySpots", data.get("NearbySpots"));
             }
+            Application.Storage.setValue("dataUpdatedAt", Time.now().value());
             WatchUi.requestUpdate();
             logMemoryUsage();
         }

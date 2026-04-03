@@ -2,7 +2,7 @@
 
 Tide Watch is a powerful and customizable Garmin watch face designed for surfers and coastal enthusiasts. It provides real-time tide and swell data directly on your wrist, helping you stay informed about the latest conditions at your favorite surf spots.
 
-![Tide Watch Screenshot](img/Screenshot.png)
+![Tide Watch Screenshot](img/Screenshot%202026-04-03%20at%2012.54.18.png)
 
 If you like this watch face, please consider supporting its development:
 
