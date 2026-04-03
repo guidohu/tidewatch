@@ -29,4 +29,10 @@
     <string id="ShowSwellGraphTitle">Show Swell in Graph</string>
     <string id="BaseColorTitle">Base Text Color</string>
     <string id="ShowDateTitle">Show Date and Day</string>
+    <string id="SurfSpotTitle">Surf Spot</string>
+    <string id="SelectFromList">Select from List</string>
+    <string id="EnterSpotIdMenuItem">Enter Surfline SpotID</string>
+    <string id="EnterCoordinatesMenuItem">Enter GPS Coordinates</string>
+    <string id="NoSpotsFound">No spots found yet</string>
+    <string id="UseWatchGps">Use Watch GPS</string>
 </resources>

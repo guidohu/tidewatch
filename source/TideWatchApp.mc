@@ -80,6 +80,9 @@ class TideWatchApp extends Application.AppBase {
             if (data.hasKey(DataKeys.SWELL_UNIT)) {
                 Application.Storage.setValue("swellUnitApi", data.get(DataKeys.SWELL_UNIT));
             }
+            if (data.hasKey("NearbySpots")) {
+                Application.Storage.setValue("NearbySpots", data.get("NearbySpots"));
+            }
             WatchUi.requestUpdate();
             logMemoryUsage();
         }
@@ -96,6 +99,10 @@ class TideWatchApp extends Application.AppBase {
 
     function getServiceDelegate() {
         return [ new TideWatchBackground() ] as [System.ServiceDelegate];
+    }
+
+    function getSettingsView() {
+        return [ new TideWatchSettingsMenu(), new TideWatchSettingsMenuDelegate() ] as [WatchUi.Views, WatchUi.InputDelegates];
     }
 }
 

@@ -20,3 +20,7 @@ developer_key
 # Local Settings and Data
 *-settings.json
 *.log
+
+# Private Files
+TODO
+tide_watch.prg.debug.xml

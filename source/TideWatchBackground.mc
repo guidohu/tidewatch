@@ -27,6 +27,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     var mSpotId = null;
     var mTargetLat = null;
     var mTargetLon = null;
+    var mMapviewDistance = 0.0075;
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -41,26 +42,24 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function onTemporalEvent() as Void {
         mResult = {};
+        mMapviewDistance = 0.0075;
         
-        var mode = Application.Properties.getValue("LocationMode");
-        if (mode != null && mode == DataKeys.LOCATION_MODE_GPS) {
-            var gpsStr = Application.Properties.getValue("GpsCoordinates");
-            if (gpsStr != null && gpsStr instanceof String) {
-                var commaIdx = gpsStr.find(",");
-                if (commaIdx != null) {
-                    var latStr = gpsStr.substring(0, commaIdx);
-                    var lonStr = gpsStr.substring(commaIdx + 1, gpsStr.length());
-                    mTargetLat = latStr.toFloat();
-                    mTargetLon = lonStr.toFloat();
-                    
-                    if (mTargetLat != null && mTargetLon != null) {
-                        logMemoryUsage();
-                        makeMapviewRequest();
-                        System.println("onTemporalEvent() done (mapview path).");
-                        return;
-                    }
-                }
+        var gpsStr = Application.Properties.getValue("GpsCoordinates");
+        if (gpsStr != null && gpsStr instanceof String) {
+            var commaIdx = gpsStr.find(",");
+            if (commaIdx != null) {
+                var latStr = gpsStr.substring(0, commaIdx);
+                var lonStr = gpsStr.substring(commaIdx + 1, gpsStr.length());
+                mTargetLat = latStr.toFloat();
+                mTargetLon = lonStr.toFloat();
             }
+        }
+        
+        if (mTargetLat != null && mTargetLon != null) {
+            logMemoryUsage();
+            makeMapviewRequest();
+            System.println("onTemporalEvent() done (mapview path).");
+            return;
         }
         
         mSpotId = Application.Properties.getValue("SpotId");
@@ -68,19 +67,16 @@ class TideWatchBackground extends System.ServiceDelegate {
             mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
         }
 
-        // Step 1: Start the sequential data fetch (Tides -> Waves)
-        // Note: Requests are chained sequentially to stay within strict background memory limits.
         logMemoryUsage();
         makeTideRequest();
         System.println("onTemporalEvent() done.");
     }
 
     function makeMapviewRequest() as Void {
-        var distance = 0.005; // +/- 0.005 degrees bounding box (~1km)
-        var south = mTargetLat - distance;
-        var north = mTargetLat + distance;
-        var west = mTargetLon - distance;
-        var east = mTargetLon + distance;
+        var south = mTargetLat - mMapviewDistance;
+        var north = mTargetLat + mMapviewDistance;
+        var west = mTargetLon - mMapviewDistance;
+        var east = mTargetLon + mMapviewDistance;
         
         var url = "https://services.surfline.com/kbyg/mapview?south=" + south + "&north=" + north + "&west=" + west + "&east=" + east;
         var options = {
@@ -95,6 +91,15 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Background: Mapview response code: " + responseCode);
         logMemoryUsage();
         
+        if (responseCode == -403 || responseCode == -402) {
+            System.println("Background: Mapview payload too large. Retrying with smaller radius (current=" + mMapviewDistance + ").");
+            if (mMapviewDistance > 0.0045) {
+                mMapviewDistance -= 0.0025;
+                makeMapviewRequest();
+                return;
+            }
+        }
+        
         if (responseCode == 200 && data != null && data instanceof Dictionary) {
             var dataObj = data.get("data");
             if (dataObj != null && dataObj instanceof Dictionary) {
@@ -102,12 +107,16 @@ class TideWatchBackground extends System.ServiceDelegate {
                 if (spots != null && spots instanceof Array && spots.size() > 0) {
                     var closestSpotId = null;
                     var minDistanceSq = 999999.0;
+                    var nearbyList = [];
                     
                     for (var i = 0; i < spots.size(); i++) {
                         var spot = spots[i] as Dictionary;
                         var sLat = spot.get("lat");
                         var sLon = spot.get("lon");
-                        if (sLat != null && sLon != null) {
+                        var spotId = spot.get("_id");
+                        var spotName = spot.get("name");
+                        
+                        if (sLat != null && sLon != null && spotId != null && spotName != null) {
                             var sLatF = 0.0;
                             if (sLat instanceof Float) { sLatF = sLat; }
                             else if (sLat instanceof Double) { sLatF = sLat.toFloat(); }
@@ -122,25 +131,52 @@ class TideWatchBackground extends System.ServiceDelegate {
                             var dLon = sLonF - mTargetLon;
                             var distSq = dLat * dLat + dLon * dLon;
                             
+                            nearbyList.add([spotName as String, spotId as String, distSq]);
+
                             if (distSq < minDistanceSq) {
                                 minDistanceSq = distSq;
-                                closestSpotId = spot.get("_id");
+                                closestSpotId = spotId as String;
                             }
                         }
                     }
                     
-                    if (closestSpotId != null && closestSpotId instanceof String) {
+                    // Bubble sort by distance
+                    for (var i = 0; i < nearbyList.size(); i++) {
+                        for (var j = i + 1; j < nearbyList.size(); j++) {
+                            var dI = (nearbyList[i] as Array)[2] as Float;
+                            var dJ = (nearbyList[j] as Array)[2] as Float;
+                            if (dJ < dI) {
+                                var temp = nearbyList[i];
+                                nearbyList[i] = nearbyList[j];
+                                nearbyList[j] = temp;
+                            }
+                        }
+                    }
+                    
+                    var top10 = [];
+                    for (var i = 0; i < nearbyList.size() && i < 10; i++) {
+                        top10.add(nearbyList[i]);
+                    }
+                    mResult.put("NearbySpots", top10);
+                    
+                    var mode = Application.Properties.getValue("LocationMode");
+                    if (mode != null && mode == DataKeys.LOCATION_MODE_GPS && closestSpotId != null) {
                         mSpotId = closestSpotId;
                         System.println("Found closest spot: " + mSpotId);
-                        data = null; // Free memory
-                        makeTideRequest();
-                        return;
+                    } else {
+                        mSpotId = Application.Properties.getValue("SpotId");
+                        if (mSpotId == null || mSpotId.equals("")) {
+                            mSpotId = "6269dc2c491aa9ad66235f52";
+                        }
                     }
+                    
+                    data = null; // Free memory
+                    makeTideRequest();
+                    return;
                 }
             }
         }
         
-        // Fallback to configured Spot ID if Mapview fails or finds no spots
         mSpotId = Application.Properties.getValue("SpotId");
         if (mSpotId == null || mSpotId.equals("")) {
             mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
