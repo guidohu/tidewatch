@@ -48,6 +48,19 @@ class TideWatchApp extends Application.AppBase {
         // We just need to trigger a UI refresh and handle follow-up registration.
         
         var spotId = Application.Properties.getValue("SpotId");
+        if (spotId == null || spotId.equals("")) {
+             var discoveredId = Application.Storage.getValue("spotId") as String?;
+             var discoveredName = Application.Storage.getValue("spotName") as String?;
+             if (discoveredId != null && !discoveredId.equals("")) {
+                 System.println("Syncing discovered spot to properties: " + discoveredName + " / " + discoveredId);
+                 Application.Properties.setValue("SpotId", discoveredId);
+                 if (discoveredName != null) {
+                     Application.Properties.setValue("SpotName", discoveredName);
+                 }
+                 spotId = discoveredId;
+             }
+        }
+
         var lastSpotId = Application.Storage.getValue("lastSpotId");
         if (spotId != null && !spotId.equals(lastSpotId)) {
             Application.Storage.setValue("lastSpotId", spotId);

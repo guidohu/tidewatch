@@ -22,5 +22,6 @@ module DataKeys {
         SWELL_UNIT = 17,
         UNIT_METER = 18,
         UNIT_FEET = 19,
+        ERROR_NO_SPOTS_NEARBY = -500,
     }
 }

@@ -46,6 +46,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             // Without Custom Coordinates we use the watch GPS. To find the closest
             // spots.
             var posInfo = Position.getInfo();
+            System.println("Watch reports position:" + posInfo.position.toDegrees());
             if (posInfo != null && posInfo.position != null) {
                 var latLon = posInfo.position.toDegrees();
                 mTargetLat = latLon[0];
@@ -54,16 +55,17 @@ class TideWatchBackground extends System.ServiceDelegate {
             System.println("Get position from watch Lat/Lon: " + mTargetLat + "/" + mTargetLon);
         }
         
-        if (mTargetLat != null && mTargetLon != null) {
+        if (mTargetLat != null && mTargetLon != null && mTargetLat < 179.99 && mTargetLon < 179.99) {
             logMemoryUsage();
             makeMapviewRequest();
             System.println("onTemporalEvent() done (mapview path).");
             return;
         }
-        
         mSpotId = Application.Properties.getValue("SpotId");
         if (mSpotId == null || mSpotId.equals("")) {
-            mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
+            System.println("No spot selected and no GPS available. Exit.");
+            Background.exit(false);
+            return;
         }
 
         logMemoryUsage();
@@ -202,10 +204,15 @@ class TideWatchBackground extends System.ServiceDelegate {
                         if (top10.size() > 0) {
                             var firstEntry = top10[0] as Array;
                             mSpotId = firstEntry[1] as String;
-                            System.println("Set SpotID to closest spot " + firstEntry[0] as String + " / " + mSpotId);
+                            var discoveredName = firstEntry[0] as String;
+                            System.println("Set SpotID to closest spot " + discoveredName + " / " + mSpotId);
+                            Application.Storage.setValue("spotId", mSpotId);
+                            Application.Storage.setValue("spotName", discoveredName);
                         } else {
-                            mSpotId = "6269dc2c491aa9ad66235f52"; // Pererenan, Bali
-                            System.println("Set SpotID to Pererenan " + mSpotId + " [DEFAULT]");
+                            System.println("No spots found in Mapview and no SpotID set.");
+                            Application.Storage.setValue("tideError", DataKeys.ERROR_NO_SPOTS_NEARBY);
+                            Background.exit(false);
+                            return;
                         }
                     }
                     
@@ -236,7 +243,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         
         mSpotId = Application.Properties.getValue("SpotId");
         if (mSpotId == null || mSpotId.equals("")) {
-            mSpotId = "6269dc2c491aa9ad66235f52"; // Canggu default
+            Application.Storage.setValue("tideError", DataKeys.ERROR_NO_SPOTS_NEARBY);
+            Background.exit(false);
+            return;
         }
         data = null;
         makeTideRequest();

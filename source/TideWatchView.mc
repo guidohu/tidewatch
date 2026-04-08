@@ -256,10 +256,20 @@ class TideWatchView extends WatchUi.WatchFace {
         drawBattery(dc, width / 2, (height * 0.08).toNumber(), mBattery, baseColor);
 
         // 2. Error Check
+        var spotId = Application.Properties.getValue("SpotId");
+        if (spotId == null || spotId.equals("")) {
+             var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
+             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+             dc.drawText(width / 2, height / 2, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+             return;
+        }
+
         if (mcTideData == null || mcTideTimes == null || mcTideStartTime == null || mcTideInterval == null) {
             var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
             if (mDisplayError != null) {
-                if (mDisplayError == -403) {
+                if (mDisplayError == DataKeys.ERROR_NO_SPOTS_NEARBY) {
+                    msg = WatchUi.loadResource(Rez.Strings.NoSpotsFound) as String;
+                } else if (mDisplayError == -403) {
                     msg = "Cannot retrieve\ntide/swell data (-403)";
                 } else if (mDisplayError <= -100 && mDisplayError > -200) {
                     msg = "Phone connection\nrequired (" + mDisplayError + ")";

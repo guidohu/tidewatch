@@ -11,7 +11,7 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         var spotId = Application.Properties.getValue("SpotId");
         var subLabel = Application.Properties.getValue("SpotName");
         if (subLabel == null || subLabel.equals("")) {
-            subLabel = spotId != null ? spotId as String : "Unknown";
+            subLabel = (spotId != null && !spotId.equals("")) ? spotId as String : "None Selected";
         }
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String, subLabel, "SurfSpot", {}));
 

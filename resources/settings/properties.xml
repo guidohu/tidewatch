@@ -1,14 +1,14 @@
 <resources>
     <properties>
-        <property id="SpotId" type="string">6269dc2c491aa9ad66235f52</property> <!-- default to Pererenan -->
-        <property id="GpsCoordinates" type="string">-8.65,115.12</property> <!-- default to Canggu coords -->
+        <property id="SpotId" type="string"></property>
+        <property id="SpotName" type="string"></property> <!-- Hidden Display Name -->
+        <property id="GpsCoordinates" type="string"></property>
         <property id="TideUnits" type="number">0</property> <!-- 0: Meters, 1: Feet -->
         <property id="SwellUnits" type="number">1</property> <!-- 0: Meters, 1: Feet -->
-        <property id="TideColor" type="number">0</property> <!-- 0: Blue, 1: Pink, 2: Red, 3: Green, 4: White, 5: Yellow -->
-        <property id="GraphColor" type="number">0</property> <!-- 0: Blue, 1: Pink, 2: Red, 3: Green, 4: White, 5: Yellow -->
+        <property id="TideColor" type="number">0</property> <!-- 0: Blue -->
+        <property id="GraphColor" type="number">0</property> <!-- 0: Blue -->
         <property id="ShowSwellGraph" type="boolean">false</property>
         <property id="BaseColor" type="number">4</property> <!-- 4: White -->
         <property id="ShowDate" type="boolean">true</property>
-        <property id="SpotName" type="string">Pererenan</property> <!-- Hidden Display Name -->
     </properties>
 </resources>

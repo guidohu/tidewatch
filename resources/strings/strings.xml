@@ -29,7 +29,8 @@
     <string id="SurfSpotTitle">Surf Spot</string>
     <string id="SelectFromList">Select from List</string>
     <string id="EnterSpotIdMenuItem">Enter Surfline SpotID</string>
-    <string id="NoSpotsFound">No spots found yet</string>
+    <string id="NoSpotSelected">No Spot Selected</string>
+    <string id="NoSpotsFound">No spots nearby. Set GPS in ConnectIQ.</string>
     <string id="SearchWatchGps">Search via Watch GPS</string>
     <string id="SearchCustomCoordinates">Search Custom Coordinates</string>
 </resources>
