@@ -259,6 +259,13 @@ class TideWatchView extends WatchUi.WatchFace {
         var spotId = Application.Properties.getValue("SpotId");
         if (spotId == null || spotId.equals("")) {
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
+             msg += "\nLast sync: ";
+             if (mLastDataUpdatedAt > 0) {
+                 var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
+                 msg += info.hour.format("%02d") + ":" + info.min.format("%02d");
+             } else {
+                 msg += "pending";
+             }
              dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
              dc.drawText(width / 2, height / 2, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
              return;
