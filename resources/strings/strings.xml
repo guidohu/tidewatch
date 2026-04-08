@@ -2,9 +2,6 @@
     <string id="AppName">Tide Watch</string>
     <string id="SpotIdTitle">Surfline Spot ID</string>
     <string id="SpotIdPrompt">Enter Surfline Spot ID</string>
-    <string id="LocationModeTitle">Location Mode</string>
-    <string id="LocationModeSpotId">Surfline Spot ID</string>
-    <string id="LocationModeGps">GPS Coordinates</string>
     <string id="GpsCoordinatesTitle">GPS Coordinates (Lat,Lon)</string>
     <string id="GpsCoordinatesPrompt">Enter Lat,Lon (e.g. -8.65,115.12)</string>
     <string id="TideUnitsTitle">Tide Units</string>
@@ -32,7 +29,7 @@
     <string id="SurfSpotTitle">Surf Spot</string>
     <string id="SelectFromList">Select from List</string>
     <string id="EnterSpotIdMenuItem">Enter Surfline SpotID</string>
-    <string id="EnterCoordinatesMenuItem">Enter GPS Coordinates</string>
     <string id="NoSpotsFound">No spots found yet</string>
-    <string id="UseWatchGps">Use Watch GPS</string>
+    <string id="SearchWatchGps">Search via Watch GPS</string>
+    <string id="SearchCustomCoordinates">Search Custom Coordinates</string>
 </resources>

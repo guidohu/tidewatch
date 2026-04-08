@@ -3,35 +3,22 @@ import Toybox.Background;
 import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.System;
+import Toybox.Position;
 
 (:background)
 class TideWatchBackground extends System.ServiceDelegate {
     /**
-     * mResult is the central data vessel passed to Background.exit() to share results with the main app.
-     * 
-     * Expected structure:
-     * - DataKeys.TIDE_DATA (0): Array<Number> (Tide heights in centimeters)
-     * - DataKeys.SPOT_NAME (1): String (The display name of the surf spot)
-     * - DataKeys.WAVE_DATA (2): Array<Array<Number?>> (48 hourly snapshots, each index containing 9 elements:
-     *                           [H1 (cm), P1 (s), D1 (deg), H2, P2, D2, H3, P3, D3] representing 3 swells)
-     * - DataKeys.WAVE_ERROR (3): Number (HTTP status code if wave data request failed)
-     * - DataKeys.TIDE_ERROR (4): Number (HTTP status code if tide data request failed)
-     * - DataKeys.TIDE_UNIT (16): Number (Unit code for tide heights: METER or FEET)
-     * - DataKeys.SWELL_UNIT (17): Number (Unit code for swell heights: METER or FEET)
-     * - DataKeys.TIDE_START_TIME (12): Number (Unix timestamp for the start of the hourly grid)
-     * - DataKeys.TIDE_INTERVAL (13): Number (Time interval between tide points in seconds)
-     * - DataKeys.TIDE_EXTREMA (14): Array<Array> (Each inner array: [timestamp, height_cm, type_code])
      * - DataKeys.TIDE_TIMES (15): Array<Number> (Precise timestamps matching TIDE_DATA entries)
      */
-    var mResult as Dictionary? = null;
     var mSpotId = null;
     var mTargetLat = null;
     var mTargetLon = null;
+    var mSpotLat = null;
+    var mSpotLon = null;
     var mMapviewDistance = 0.0075;
 
     function initialize() {
         ServiceDelegate.initialize();
-        mResult = {};
         System.println("Tide Watch started successfully");
     }
 
@@ -41,18 +28,30 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function onTemporalEvent() as Void {
-        mResult = {};
         mMapviewDistance = 0.0075;
         
-        var gpsStr = Application.Properties.getValue("GpsCoordinates");
-        if (gpsStr != null && gpsStr instanceof String) {
+        var gpsStr = Application.Properties.getValue("GpsCoordinates"); 
+        System.println("Application.Properties.GpsCoordinates: " + gpsStr);
+        if (gpsStr != null && gpsStr instanceof String && gpsStr.length() > 0) {
+            System.println("Custom coordinates defined: " + gpsStr);
             var commaIdx = gpsStr.find(",");
             if (commaIdx != null) {
                 var latStr = gpsStr.substring(0, commaIdx);
-                var lonStr = gpsStr.substring(commaIdx + 1, gpsStr.length());
+                var lonStr = gpsStr.substring(commaIdx+1, gpsStr.length());
                 mTargetLat = latStr.toFloat();
                 mTargetLon = lonStr.toFloat();
+                System.println("Parsed Lat/Lon " + latStr + "/" + lonStr + " into: " + mTargetLat + "/" + mTargetLon);
             }
+        } else {
+            // Without Custom Coordinates we use the watch GPS. To find the closest
+            // spots.
+            var posInfo = Position.getInfo();
+            if (posInfo != null && posInfo.position != null) {
+                var latLon = posInfo.position.toDegrees();
+                mTargetLat = latLon[0];
+                mTargetLon = latLon[1];
+            }
+            System.println("Get position from watch Lat/Lon: " + mTargetLat + "/" + mTargetLon);
         }
         
         if (mTargetLat != null && mTargetLon != null) {
@@ -83,12 +82,50 @@ class TideWatchBackground extends System.ServiceDelegate {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
         };
-        System.println("Background: Requesting Mapview spots from: " + url);
+        System.println("Requesting Mapview spots from: " + url);
         Communications.makeWebRequest(url, null, options, method(:onReceiveMapviewResponse));
     }
 
+    function makeMapviewResolutionRequest(lat, lon) as Void {
+        var dist = 0.0005; // Tight radius for specific resolution
+        var south = lat - dist;
+        var north = lat + dist;
+        var west = lon - dist;
+        var east = lon + dist;
+        
+        var url = "https://services.surfline.com/kbyg/mapview?south=" + south + "&north=" + north + "&west=" + west + "&east=" + east;
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+        };
+        System.println("Resolving name for " + mSpotId + " at " + lat + "/" + lon);
+        Communications.makeWebRequest(url, null, options, method(:onReceiveMapviewResolutionResponse));
+    }
+
+    function makeTideRequest() as Void {
+        var url = "https://services.surfline.com/kbyg/spots/forecasts/tides?units=m&spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineTideInterval;
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+        };
+        System.println("Requesting Tides from: " + url);
+        // onReceiveTideResponse will call makeWaveRequest. This way the request is sequential.
+        // This is done for memory reasons.
+        Communications.makeWebRequest(url, null, options, method(:onReceiveTideResponse));
+    }
+
+    function makeWaveRequest() as Void {
+        var url = "https://services.surfline.com/kbyg/spots/forecasts/wave?spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineWaveInterval;
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
+        };
+        System.println("Requesting Waves from: " + url);
+        Communications.makeWebRequest(url, null, options, method(:onReceiveWaveResponse));
+    }
+
     function onReceiveMapviewResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Background: Mapview response code: " + responseCode);
+        System.println("Mapview response code: " + responseCode);
         logMemoryUsage();
         
         if (responseCode == -403 || responseCode == -402) {
@@ -100,14 +137,19 @@ class TideWatchBackground extends System.ServiceDelegate {
             }
         }
         
+        // Extract the data structure under:
+        // "data" : {
+        //    "spots" : [
+        //       { "_id" : "6269dc2c441aa9ad66235f52", "name" : "Canggu", "lat" : -8.65, "lon" : 115.13 },
+        //       ...
+        //    ]
+        // }
         if (responseCode == 200 && data != null && data instanceof Dictionary) {
             var dataObj = data.get("data");
             if (dataObj != null && dataObj instanceof Dictionary) {
                 var spots = dataObj.get("spots");
                 if (spots != null && spots instanceof Array && spots.size() > 0) {
-                    var closestSpotId = null;
-                    var minDistanceSq = 999999.0;
-                    var nearbyList = [];
+                    var top10 = [] as Array<Array>; // Stores [spotName, spotId, distSq]
                     
                     for (var i = 0; i < spots.size(); i++) {
                         var spot = spots[i] as Dictionary;
@@ -115,63 +157,78 @@ class TideWatchBackground extends System.ServiceDelegate {
                         var sLon = spot.get("lon");
                         var spotId = spot.get("_id");
                         var spotName = spot.get("name");
+                        // Early cleanup
+                        spot.remove("lat");
+                        spot.remove("lon");
+                        spot.remove("_id");
+                        spot.remove("name");
                         
                         if (sLat != null && sLon != null && spotId != null && spotName != null) {
-                            var sLatF = 0.0;
-                            if (sLat instanceof Float) { sLatF = sLat; }
-                            else if (sLat instanceof Double) { sLatF = sLat.toFloat(); }
-                            else if (sLat instanceof Number) { sLatF = sLat.toFloat(); }
-                            
-                            var sLonF = 0.0;
-                            if (sLon instanceof Float) { sLonF = sLon; }
-                            else if (sLon instanceof Double) { sLonF = sLon.toFloat(); }
-                            else if (sLon instanceof Number) { sLonF = sLon.toFloat(); }
+                            var sLatF = (sLat as Numeric).toFloat();
+                            var sLonF = (sLon as Numeric).toFloat();
                             
                             var dLat = sLatF - mTargetLat;
                             var dLon = sLonF - mTargetLon;
                             var distSq = dLat * dLat + dLon * dLon;
                             
-                            nearbyList.add([spotName as String, spotId as String, distSq]);
+                            // Insert into sorted top10 (insertion sort variant)
+                            var inserted = false;
+                            for (var j = 0; j < top10.size(); j++) {
+                                if (distSq < (top10[j] as Array)[2]) {
+                                    top10.add([] as Array); // Grow the array
+                                    for (var k = top10.size() - 1; k > j; k--) {
+                                        top10[k] = top10[k - 1];
+                                    }
+                                    top10[j] = [spotName as String, spotId as String, distSq] as Array;
+                                    inserted = true;
+                                    break;
+                                }
+                            }
+                            if (!inserted && top10.size() < 10) {
+                                top10.add([spotName as String, spotId as String, distSq]);
+                            }
+                            if (top10.size() > 10) {
+                                top10 = top10.slice(0, 10);
+                            }
+                        }
+                    }
+                    if (top10.size() > 10) { top10 = top10.slice(0, 10); }
 
-                            if (distSq < minDistanceSq) {
-                                minDistanceSq = distSq;
-                                closestSpotId = spotId as String;
-                            }
+                    Application.Storage.setValue("NearbySpots", top10);
+                    System.println("NearbySpots stored");
+                    
+                    mSpotId = Application.Properties.getValue("SpotId");
+                    if (mSpotId == null || mSpotId.equals("")) {
+                        if (top10.size() > 0) {
+                            var firstEntry = top10[0] as Array;
+                            mSpotId = firstEntry[1] as String;
+                            System.println("Set SpotID to closest spot " + firstEntry[0] as String + " / " + mSpotId);
+                        } else {
+                            mSpotId = "6269dc2c491aa9ad66235f52"; // Pererenan, Bali
+                            System.println("Set SpotID to Pererenan " + mSpotId + " [DEFAULT]");
                         }
                     }
                     
-                    // Bubble sort by distance
-                    for (var i = 0; i < nearbyList.size(); i++) {
-                        for (var j = i + 1; j < nearbyList.size(); j++) {
-                            var dI = (nearbyList[i] as Array)[2] as Float;
-                            var dJ = (nearbyList[j] as Array)[2] as Float;
-                            if (dJ < dI) {
-                                var temp = nearbyList[i];
-                                nearbyList[i] = nearbyList[j];
-                                nearbyList[j] = temp;
-                            }
-                        }
-                    }
-                    
-                    var top10 = [];
-                    for (var i = 0; i < nearbyList.size() && i < 10; i++) {
-                        top10.add(nearbyList[i]);
-                    }
-                    mResult.put("NearbySpots", top10);
-                    
-                    var mode = Application.Properties.getValue("LocationMode");
-                    if (mode != null && mode == DataKeys.LOCATION_MODE_GPS && closestSpotId != null) {
-                        mSpotId = closestSpotId;
-                        System.println("Found closest spot: " + mSpotId);
-                    } else {
-                        mSpotId = Application.Properties.getValue("SpotId");
-                        if (mSpotId == null || mSpotId.equals("")) {
-                            mSpotId = "6269dc2c491aa9ad66235f52";
+                    // Search for the name of the active mSpotId in our discovered top10 spots.
+                    for (var i = 0; i < top10.size(); i++) {
+                        var entry = top10[i] as Array;
+                        if (entry[1].equals(mSpotId)) {
+                            var name = entry[0] as String;
+                            System.println("Found spot name in top10: " + name);
+                            Application.Storage.setValue("spotName", name);
+                            break;
                         }
                     }
                     
                     data = null; // Free memory
+                    top10 = null;
                     makeTideRequest();
+                    return;
+                } else if (mMapviewDistance < 0.02) {
+                    mMapviewDistance += 0.0025;
+                    System.println("Mapview: No spots found. Retrying with larger radius (current=" + mMapviewDistance + ").");
+                    data = null;
+                    makeMapviewRequest();
                     return;
                 }
             }
@@ -185,47 +242,23 @@ class TideWatchBackground extends System.ServiceDelegate {
         makeTideRequest();
     }
 
-    function makeTideRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/tides?units=m&spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineTideInterval;
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-        };
-        System.println("Background: Requesting Tides from: " + url);
-        // onReceiveTideResponse will call makeWaveRequest. This way the request is sequential.
-        // This is done for memory reasons.
-        Communications.makeWebRequest(url, null, options, method(:onReceiveTideResponse));
-    }
-
-    function makeWaveRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/wave?spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineWaveInterval;
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
-        };
-        System.println("Background: Requesting Waves from: " + url);
-        Communications.makeWebRequest(url, null, options, method(:onReceiveWaveResponse));
-    }
-
     function onReceiveTideResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Background: Tides response code: " + responseCode);
-        System.println("Background: Response data:" + data);
+        System.println("Tides response code: " + responseCode);
         logMemoryUsage();
         
         // Extract the data structure under:
-        // "associated" : { "spot" : { "name" : "Canggu" } }
+        // "associated" : { "units" : { "tideHeight" : "M" } }
         // "data" : {
         //    "tides" : [
-        //       { "timestamp" : 1234567890, "type" : "HIGH", "value" : 1.23 },
-        //       { "timestamp" : 1234567890, "type" : "LOW", "value" : 1.23 },
+        //       { "timestamp" : 1234567890, "type" : "HIGH", "height" : 1.23 },
+        //       { "timestamp" : 1234567890, "type" : "LOW", "height" : 1.23 },
         //       ...
-        //    }
+        //    ]
         // }
         if (responseCode == 200 && data != null && data instanceof Dictionary) {
-            // Parse Tides and Spot information and store results in mResult.
+            // Parse Tides and store results.
             parseTideFromTideData(data);
             parseTideUnitFromTideData(data);
-            parseSpotNameFromTideData(data);
                 
             // Step 2: Clear memory and fetch Wave Data
             logMemoryUsage();
@@ -233,64 +266,59 @@ class TideWatchBackground extends System.ServiceDelegate {
             makeWaveRequest();
             return;
         }
-        Background.exit({DataKeys.TIDE_ERROR => responseCode});
+        Application.Storage.setValue("tideError", responseCode);
+        Background.exit(false);
     }
     
     function onReceiveWaveResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Background: Waves response code: " + responseCode);
+        System.println("Waves response code: " + responseCode);
         logMemoryUsage();
         
         if (responseCode == 200 && data != null) {
             parseSwellUnitFromWaveData(data);
             var waveResults = parseWaveFromWaveData(data);
             if (waveResults != null) {
-                mResult.put(DataKeys.WAVE_DATA, waveResults);
+                Application.Storage.setValue("waveData", waveResults);
+                waveResults = null; // Reclaim memory
             }
         } else {
-            mResult.put(DataKeys.WAVE_ERROR, responseCode);
+            Application.Storage.setValue("waveError", responseCode);
         }
 
-        Background.exit(mResult);
+        // If we don't have a name yet, try to resolve it using coordinates from Wave API
+        var existingName = Application.Storage.getValue("spotName");
+        if (existingName == null && mSpotLat != null && mSpotLon != null) {
+            data = null;
+            makeMapviewResolutionRequest(mSpotLat, mSpotLon);
+            return;
+        }
+
+        Background.exit(true);
         return;
     }
 
-    /**
-     * Extracts the spot name from the Surfline API response.
-     * 
-     * The response data structure looks like this:
-     * {
-     *   "associated": {
-     *     "tideLocation": {
-     *       "name": "Canggu, West Bali",
-     *       ...
-     *     },
-     *     ...
-     *   },
-     *   "data": { "tides": [...] }
-     * }
-     * 
-     * We parse the "name" field (e.g., "Canggu, West Bali") and return the
-     * part before the comma (e.g., "Canggu").
-     */
-    function parseSpotNameFromTideData(data as Dictionary) {
-        var spotName = "Unknown";
-        var associated = data.get("associated");
-        if (associated != null && associated instanceof Dictionary) {
-            var tideLocation = associated.get("tideLocation");
-            if (tideLocation != null && tideLocation instanceof Dictionary) {
-                var fullName = tideLocation.get("name");
-                if (fullName != null && fullName instanceof String) {
-                    var commaIdx = fullName.find(",");
-                    if (commaIdx != null) {
-                        spotName = fullName.substring(0, commaIdx);
-                    } else {
-                        spotName = fullName;
+    function onReceiveMapviewResolutionResponse(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Mapview resolution response: " + responseCode);
+        logMemoryUsage();
+        if (responseCode == 200 && data != null && data instanceof Dictionary) {
+            var dataObj = data.get("data");
+            if (dataObj != null && dataObj instanceof Dictionary) {
+                var spots = dataObj.get("spots");
+                if (spots != null && spots instanceof Array) {
+                    for (var i = 0; i < spots.size(); i++) {
+                        var spot = spots[i] as Dictionary;
+                        if (spot.get("_id").equals(mSpotId)) {
+                            var name = spot.get("name") as String;
+                            System.println("Successfully resolved spot name: " + name);
+                            Application.Storage.setValue("spotName", name);
+                            break;
+                        }
+                        spots[i] = null;
                     }
                 }
             }
         }
-        mResult.put(DataKeys.SPOT_NAME, spotName);
-        return;
+        Background.exit(true);
     }
 
     /**
@@ -299,10 +327,10 @@ class TideWatchBackground extends System.ServiceDelegate {
      * The response data structure looks like this:
      * "data" : {
      *    "tides" : [
-     *       { "timestamp" : 1234567890, "type" : "HIGH", "value" : 1.23 },
-     *       { "timestamp" : 1234567890, "type" : "LOW", "value" : 1.23 },
+     *       { "timestamp" : 1234567890, "type" : "HIGH", "height" : 1.23 },
+     *       { "timestamp" : 1234567890, "type" : "LOW", "height" : 1.23 },
      *       ...
-     *    }
+     *    ]
      * }
      */
     function parseTideFromTideData(data as Dictionary) {
@@ -321,7 +349,8 @@ class TideWatchBackground extends System.ServiceDelegate {
                         extrema.add([tide.get("timestamp"), height, typeCode]);
                     }
                 }
-                mResult.put(DataKeys.TIDE_EXTREMA, extrema);
+                Application.Storage.setValue("tideExtrema", extrema);
+                extrema = null;
                 
                 // 2. Collect Grid Points and their Timestamps.
                 var gridHeights = new Array<Number>[tides.size()];
@@ -334,11 +363,15 @@ class TideWatchBackground extends System.ServiceDelegate {
                     gridHeights[i] = height;
                     gridTimes[i] = ts;
                 }
-                mResult.put(DataKeys.TIDE_TIMES, gridTimes);
-                mResult.put(DataKeys.TIDE_DATA, gridHeights);
-                mResult.put(DataKeys.TIDE_START_TIME, startTime);
-                mResult.put(DataKeys.TIDE_INTERVAL, Constants.SurflineTideInterval * 3600);
-                System.println("Prepared grid tide data: " + gridHeights.size() + " hourly heights (+ extrema), " + extrema.size() + " extrema");
+                Application.Storage.setValue("tideTimes", gridTimes);
+                Application.Storage.setValue("tideData", gridHeights);
+                Application.Storage.setValue("tideStartTime", startTime);
+                Application.Storage.setValue("tideInterval", Constants.SurflineTideInterval * 3600);
+                
+                gridHeights = null;
+                gridTimes = null;
+                
+                System.println("Saved grid tide data to storage");
             }
         }
         return null;
@@ -351,7 +384,6 @@ class TideWatchBackground extends System.ServiceDelegate {
      * "associated" : {
      *   "units" : {
      *     "tideHeight": "M",
-     *     "swellHeight": "M"
      *   }
      * }
      */
@@ -362,9 +394,9 @@ class TideWatchBackground extends System.ServiceDelegate {
             if (units != null && units instanceof Dictionary) {
                 var tideUnitStr = units.get("tideHeight");
                 if (tideUnitStr != null && tideUnitStr.equals("M")) {
-                    mResult.put(DataKeys.TIDE_UNIT, DataKeys.UNIT_METER);
+                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
                 } else {
-                    mResult.put(DataKeys.TIDE_UNIT, DataKeys.UNIT_FEET);
+                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_FEET);
                 }
             }
         }
@@ -387,9 +419,9 @@ class TideWatchBackground extends System.ServiceDelegate {
             if (units != null && units instanceof Dictionary) {
                 var swellUnitStr = units.get("swellHeight");
                 if (swellUnitStr != null && swellUnitStr.equals("M")) {
-                    mResult.put(DataKeys.SWELL_UNIT, DataKeys.UNIT_METER);
+                    Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER);
                 } else {
-                    mResult.put(DataKeys.SWELL_UNIT, DataKeys.UNIT_FEET);
+                    Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_FEET);
                 }
             }
         }
@@ -400,29 +432,41 @@ class TideWatchBackground extends System.ServiceDelegate {
      * 
      * The response structure looks like this:
      * {
-     *   "associated" : { },
+     *   "associated" : {
+     *     "units": { "swellHeight": "M" },
+     *     "location": { "lat": -8.65, "lon": 115.13 }
+     *   },
      *   "data": {
      *     "wave": [
      *       {
      *         "timestamp": 1774713600,
      *         "swells": [
-     *           { "height": 1.83, "period": 12, "direction": 195.7, "power": 694.2, "impact": 0.7146 },
+     *           { "height": 1.83, "period": 12, "direction": 195.7, "impact": 0.7146 },
      *           ...
      *         ]
      *       },
      *       ...
      *     ]
-     *   },
-     *   "permissions" : { }
+     *   }
      * }
      * 
-     * We extract up to 24 future-looking points and pick the top 3 swells 
-     * (sorted by power) for each timestamp.
+     * We extract the data matching our tide timestamps and pick the top 3 swells 
+     * (sorted by impact) for each timestamp.
      */
     function parseWaveFromWaveData(data as Dictionary) as Array<Array<Number?>>? {
         var dataObj = data.get("data");
         if (dataObj == null || !(dataObj instanceof Dictionary)) {
             return null;
+        }
+
+        var associated = data.get("associated");
+        if (associated != null && associated instanceof Dictionary) {
+            var location = associated.get("location");
+            if (location != null && location instanceof Dictionary) {
+                mSpotLat = location.get("lat");
+                mSpotLon = location.get("lon");
+                System.println("Extracted spot coordinates: " + mSpotLat + "/" + mSpotLon);
+            }
         }
 
         // Remove stuff we do not need right from the beginning
@@ -447,53 +491,65 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
 
         // 2. Get target timestamps from TIDE_TIMES
-        var targetTimes = mResult.get(DataKeys.TIDE_TIMES) as Array<Number>?;
+        var targetTimes = Application.Storage.getValue("tideTimes") as Array<Number>?;
         if (targetTimes == null || targetTimes.size() == 0) {
             return null;
         }
 
-        // 3. Generate interpolated points matching TIDE_TIMES
+        // 3. Generate interpolated points matching TIDE_TIMES (Single-pass tracker)
         var totalPoints = targetTimes.size();
         var itemsToKeep = new Array<Array<Number?>>[totalPoints];
+        var currentIndex = 0;
         
         for (var h = 0; h < totalPoints; h++) {
             var targetTs = targetTimes[h];
             
-            // Find flanking points in waveArray
-            var idx1 = -1;
-            var idx2 = -1;
-            for (var i = 0; i < waveArray.size() - 1; i++) {
-                var ts1 = (waveArray[i] as Dictionary).get("timestamp") as Number;
-                var ts2 = (waveArray[i+1] as Dictionary).get("timestamp") as Number;
-                if (targetTs >= ts1 && targetTs <= ts2) {
-                    idx1 = i;
-                    idx2 = i + 1;
+            // Reclaim memory: Null out swells of points we've definitely passed
+            if (currentIndex > 0) {
+                var prevPoint = waveArray[currentIndex - 1] as Dictionary;
+                if (prevPoint.hasKey("swells")) {
+                    prevPoint.put("swells", null);
+                }
+            }
+
+            // Find flanking points in waveArray using single-pass approach
+            while (currentIndex < waveArray.size() - 1) {
+                var ts2 = (waveArray[currentIndex + 1] as Dictionary).get("timestamp") as Number;
+                if (ts2 >= targetTs) {
                     break;
                 }
+                // Memory Reclaim: As we advance, null out the swells we won't need again
+                (waveArray[currentIndex] as Dictionary).put("swells", null);
+                currentIndex++;
             }
             
             var resultPoint = new Array<Number?>[9];
-            
-            if (idx1 != -1 && idx2 != -1) {
-                var w1 = waveArray[idx1] as Dictionary;
-                var w2 = waveArray[idx2] as Dictionary;
-                var ts1 = w1.get("timestamp") as Number;
+            var w1 = waveArray[currentIndex] as Dictionary;
+            var ts1 = w1.get("timestamp") as Number;
+
+            if (currentIndex < waveArray.size() - 1) {
+                var w2 = waveArray[currentIndex + 1] as Dictionary;
                 var ts2 = w2.get("timestamp") as Number;
-                var ratio = (targetTs - ts1).toFloat() / (ts2 - ts1).toFloat();
                 
-                interpolateSwells(resultPoint, w1.get("swells") as Array?, w2.get("swells") as Array?, ratio);
-            } else if (targetTs < (waveArray[0] as Dictionary).get("timestamp") as Number) {
-                // Clamping to first
-                extractSwells(resultPoint, (waveArray[0] as Dictionary).get("swells") as Array?);
+                if (targetTs >= ts1 && targetTs <= ts2) {
+                    var ratio = (ts2 == ts1) ? 0.0 : (targetTs - ts1).toFloat() / (ts2 - ts1).toFloat();
+                    interpolateSwells(resultPoint, w1.get("swells") as Array?, w2.get("swells") as Array?, ratio);
+                } else if (targetTs < ts1) { // Clamping to first (shouldn't happen with correct while loop)
+                    extractSwells(resultPoint, w1.get("swells") as Array?);
+                } else { // targetTs > ts2 (shouldn't happen with correct while loop)
+                    extractSwells(resultPoint, w2.get("swells") as Array?);
+                }
             } else {
                 // Clamping to last
-                extractSwells(resultPoint, (waveArray[waveArray.size()-1] as Dictionary).get("swells") as Array?);
+                extractSwells(resultPoint, w1.get("swells") as Array?);
             }
             
             itemsToKeep[h] = resultPoint;
         }
 
         System.println("Prepared " + totalPoints + " interpolated items for waves");
+        targetTimes = null; // Free reference
+        waveArray = null;
         logMemoryUsage();
         return itemsToKeep;
     }
@@ -611,11 +667,15 @@ class TideWatchBackground extends System.ServiceDelegate {
 
         for (var i = 0; i < swells.size(); i++) {
             var s = swells[i] as Dictionary;
-            var impact = s.get("impact");
+            var impactVal = s.get("impact");
             var v = 0.0;
-            if (impact instanceof Number) { v = impact.toFloat(); } 
-            else if (impact instanceof Float) { v = impact; } 
-            else if (impact instanceof Double) { v = impact.toFloat(); }
+            if (impactVal instanceof Number) { v = (impactVal as Number).toFloat(); } 
+            else if (impactVal instanceof Float) { v = impactVal as Float; } 
+            else if (impactVal instanceof Double) { v = (impactVal as Double).toFloat(); }
+            
+            // Aggressive cleaning: Remove keys we won't need for interpolation
+            s.remove("impact");
+            s.remove("power");
 
             if (v > topImpacts[0]) {
                 topImpacts[2] = topImpacts[1]; top3[2] = top3[1];
@@ -629,5 +689,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             }
         }
         waveItem.put("swells", top3);
+        top3 = null;
+        topImpacts = null;
     }
 }

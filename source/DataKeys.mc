@@ -22,7 +22,5 @@ module DataKeys {
         SWELL_UNIT = 17,
         UNIT_METER = 18,
         UNIT_FEET = 19,
-        LOCATION_MODE_SPOT_ID = 0,
-        LOCATION_MODE_GPS = 1,
     }
 }

@@ -1,11 +1,5 @@
 <resources>
     <settings>
-        <setting propertyKey="@Properties.LocationMode" title="@Strings.LocationModeTitle">
-            <settingConfig type="list">
-                <listEntry value="0">@Strings.LocationModeSpotId</listEntry>
-                <listEntry value="1">@Strings.LocationModeGps</listEntry>
-            </settingConfig>
-        </setting>
         <setting propertyKey="@Properties.SpotId" title="@Strings.SpotIdTitle" prompt="@Strings.SpotIdPrompt">
             <settingConfig type="alphaNumeric" />
         </setting>

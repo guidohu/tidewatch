@@ -9,22 +9,17 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         Menu2.initialize({:title=>"Settings"});
         
         var spotId = Application.Properties.getValue("SpotId");
-        var subLabel = spotId != null ? spotId as String : "Unknown";
-        var cachedSpots = Application.Storage.getValue("NearbySpots");
-        if (cachedSpots != null && cachedSpots instanceof Array) {
-            for (var i = 0; i < cachedSpots.size(); i++) {
-                var item = cachedSpots[i];
-                if (item instanceof Array && item.size() >= 2) {
-                    if (item[1].equals(spotId)) {
-                        subLabel = item[0] as String;
-                        break;
-                    }
-                }
-            }
+        var subLabel = Application.Properties.getValue("SpotName");
+        if (subLabel == null || subLabel.equals("")) {
+            subLabel = spotId != null ? spotId as String : "Unknown";
         }
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String, subLabel, "SurfSpot", {}));
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideUnitsTitle) as String, null, "TideUnits", {}));
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SwellUnitsTitle) as String, null, "SwellUnits", {}));
+
+        var tideUnit = Application.Properties.getValue("TideUnits") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideUnitsTitle) as String, getUnitName(tideUnit), "TideUnits", {}));
+
+        var swellUnit = Application.Properties.getValue("SwellUnits") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SwellUnitsTitle) as String, getUnitName(swellUnit), "SwellUnits", {}));
 
         var showSwell = Application.Properties.getValue("ShowSwellGraph") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(WatchUi.loadResource(Rez.Strings.ShowSwellGraphTitle) as String, null, "ShowSwellGraph", showSwell, {}));
@@ -32,9 +27,45 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         var showDate = Application.Properties.getValue("ShowDate") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(WatchUi.loadResource(Rez.Strings.ShowDateTitle) as String, null, "ShowDate", showDate, {}));
 
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.BaseColorTitle) as String, null, "BaseColor", {}));
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideColorTitle) as String, null, "TideColor", {}));
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.GraphColorTitle) as String, null, "GraphColor", {}));
+        var baseColor = Application.Properties.getValue("BaseColor") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.BaseColorTitle) as String, getColorName(baseColor), "BaseColor", {}));
+
+        var tideColor = Application.Properties.getValue("TideColor") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideColorTitle) as String, getColorName(tideColor), "TideColor", {}));
+
+        var graphColor = Application.Properties.getValue("GraphColor") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.GraphColorTitle) as String, getColorName(graphColor), "GraphColor", {}));
+    }
+
+    function getColorName(index as Number) as String {
+        var colorStrings = [
+            Rez.Strings.ColorBlue,
+            Rez.Strings.ColorPink,
+            Rez.Strings.ColorRed,
+            Rez.Strings.ColorGreen,
+            Rez.Strings.ColorWhite,
+            Rez.Strings.ColorYellow,
+            Rez.Strings.ColorOrange,
+            Rez.Strings.ColorPurple,
+            Rez.Strings.ColorLtGray,
+            Rez.Strings.ColorDkGray,
+            Rez.Strings.ColorLightBlue,
+            Rez.Strings.ColorPetrol,
+            Rez.Strings.ColorTurquoise
+        ];
+        if (index >= 0 && index < colorStrings.size()) {
+            return WatchUi.loadResource(colorStrings[index]) as String;
+        }
+        return "Unknown";
+    }
+
+    function getUnitName(index as Number) as String {
+        if (index == 0) {
+            return WatchUi.loadResource(Rez.Strings.UnitsMeters) as String;
+        } else if (index == 1) {
+            return WatchUi.loadResource(Rez.Strings.UnitsFeet) as String;
+        }
+        return "Unknown";
     }
 }
 
@@ -46,11 +77,11 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as String;
         if (id.equals("SurfSpot")) {
-            WatchUi.pushView(new SpotOptionMenu(), new SpotOptionMenuDelegate(), WatchUi.SLIDE_LEFT);
+            WatchUi.pushView(new SpotOptionMenu(item), new SpotOptionMenuDelegate(item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("BaseColor") || id.equals("TideColor") || id.equals("GraphColor")) {
-            WatchUi.pushView(new ColorMenu(id), new ColorMenuDelegate(id), WatchUi.SLIDE_LEFT);
+            WatchUi.pushView(new ColorMenu(id, item), new ColorMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TideUnits") || id.equals("SwellUnits")) {
-            WatchUi.pushView(new UnitMenu(id), new UnitMenuDelegate(id), WatchUi.SLIDE_LEFT);
+            WatchUi.pushView(new UnitMenu(id, item), new UnitMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
         }
@@ -58,7 +89,7 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
 }
 
 class ColorMenu extends WatchUi.Menu2 {
-    function initialize(propertyId as String) {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
         var titleStr = "";
         if (propertyId.equals("BaseColor")) {
             titleStr = WatchUi.loadResource(Rez.Strings.BaseColorTitle) as String;
@@ -94,21 +125,24 @@ class ColorMenu extends WatchUi.Menu2 {
 
 class ColorMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _propertyId as String;
+    private var _parentItem as WatchUi.MenuItem;
     
-    function initialize(propertyId as String) {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
         Menu2InputDelegate.initialize();
         _propertyId = propertyId;
+        _parentItem = parentItem;
     }
     
     function onSelect(item as WatchUi.MenuItem) as Void {
         var colorIndex = item.getId() as Number;
         Application.Properties.setValue(_propertyId, colorIndex);
+        _parentItem.setSubLabel(item.getLabel());
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
 }
 
 class UnitMenu extends WatchUi.Menu2 {
-    function initialize(propertyId as String) {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
         var titleStr = "";
         if (propertyId.equals("TideUnits")) {
             titleStr = WatchUi.loadResource(Rez.Strings.TideUnitsTitle) as String;
@@ -124,54 +158,62 @@ class UnitMenu extends WatchUi.Menu2 {
 
 class UnitMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _propertyId as String;
+    private var _parentItem as WatchUi.MenuItem;
     
-    function initialize(propertyId as String) {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
         Menu2InputDelegate.initialize();
         _propertyId = propertyId;
+        _parentItem = parentItem;
     }
     
     function onSelect(item as WatchUi.MenuItem) as Void {
         var unitIndex = item.getId() as Number;
         Application.Properties.setValue(_propertyId, unitIndex);
+        _parentItem.setSubLabel(item.getLabel());
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
 }
 
 class SpotOptionMenu extends WatchUi.Menu2 {
-    function initialize() {
+    function initialize(parentItem as WatchUi.MenuItem) {
         Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String});
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SelectFromList) as String, null, "SelectFromList", {}));
+        
+        var gpsStr = Application.Properties.getValue("GpsCoordinates");
+        var hasCoords = (gpsStr != null && gpsStr instanceof String && gpsStr.length() > 0);
+        
+        if (hasCoords) {
+            addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SearchCustomCoordinates) as String, gpsStr as String, "SearchSpots", {}));
+        } else {
+            addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SearchWatchGps) as String, null, "SearchSpots", {}));
+        }
         
         var spotId = Application.Properties.getValue("SpotId");
         var spotIdStr = spotId != null ? spotId as String : "";
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.EnterSpotIdMenuItem) as String, spotIdStr, "EnterSpotId", {}));
-        
-        var gpsStr = Application.Properties.getValue("GpsCoordinates");
-        var gpsLabel = gpsStr != null ? gpsStr as String : "";
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.EnterCoordinatesMenuItem) as String, gpsLabel, "EnterCoordinates", {}));
     }
 }
 
 class SpotOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
+    private var _parentItem as WatchUi.MenuItem;
+    
+    function initialize(parentItem as WatchUi.MenuItem) {
         Menu2InputDelegate.initialize();
+        _parentItem = parentItem;
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as String;
-        if (id.equals("SelectFromList")) {
-            WatchUi.pushView(new NearbySpotMenu(), new NearbySpotDelegate(), WatchUi.SLIDE_LEFT);
+        if (id.equals("SearchSpots")) {
+            WatchUi.pushView(new NearbySpotMenu(_parentItem), new NearbySpotDelegate(_parentItem), WatchUi.SLIDE_LEFT);
         } else if (id.equals("EnterSpotId")) {
             item.setSubLabel("Use Phone App");
             WatchUi.requestUpdate();
-        } else if (id.equals("EnterCoordinates")) {
-            WatchUi.pushView(new GpsOptionMenu(), new GpsOptionDelegate(), WatchUi.SLIDE_LEFT);
         }
     }
 }
 
 class NearbySpotMenu extends WatchUi.Menu2 {
-    function initialize() {
+    function initialize(parentItem as WatchUi.MenuItem) {
         Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.SelectFromList) as String});
         var spots = Application.Storage.getValue("NearbySpots");
         
@@ -191,55 +233,53 @@ class NearbySpotMenu extends WatchUi.Menu2 {
 }
 
 class NearbySpotDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
+    private var _parentItem as WatchUi.MenuItem;
+
+    function initialize(parentItem as WatchUi.MenuItem) {
         Menu2InputDelegate.initialize();
+        _parentItem = parentItem;
     }
     
     function onSelect(item as WatchUi.MenuItem) as Void {
         var selectedId = item.getId() as String;
+        var selectedName = item.getLabel(); // Get the name from the menu item
+
         if (selectedId.equals("None")) {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
             return;
         }
         
+        System.println("Set SpotId to " + selectedId + " (" + selectedName + ")");
         Application.Properties.setValue("SpotId", selectedId);
-        Application.Properties.setValue("LocationMode", 0); // Spot ID Mode
+        Application.Properties.setValue("SpotName", selectedName);
+        Application.Storage.setValue("lastSpotId", selectedId);
+
+        // Update spotName immediately so main view knows what to show.
+        Application.Storage.setValue("spotName", selectedName);
+        _parentItem.setSubLabel(selectedName);
+
+        // Invalidate current data. This will trigger "Waiting for sync..." on main view.
+        Application.Storage.setValue("tideData", null);
+        Application.Storage.setValue("tideTimes", null);
+        Application.Storage.setValue("tideStartTime", null);
+        Application.Storage.setValue("tideInterval", null);
+        Application.Storage.setValue("tideExtrema", null);
+        Application.Storage.setValue("waveData", null);
+        Application.Storage.deleteValue("tideError");
+        Application.Storage.deleteValue("waveError");
+        Application.Storage.setValue("dataUpdatedAt", 0);
+
+        // Trigger an immediate background sync for the new spot.
+        if (Toybox has :Background) {
+            try {
+                Background.registerForTemporalEvent(new Time.Duration(1));
+            } catch (e) {
+                System.println("Background error: " + e.getErrorMessage());
+            }
+        }
         
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         WatchUi.requestUpdate();
-    }
-}
-
-class GpsOptionMenu extends WatchUi.Menu2 {
-    function initialize() {
-        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.EnterCoordinatesMenuItem) as String});
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UseWatchGps) as String, null, "UseWatchGps", {}));
-        addItem(new WatchUi.MenuItem("Set via Phone App", null, "UsePhone", {}));
-    }
-}
-
-class GpsOptionDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-    
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var id = item.getId() as String;
-        if (id.equals("UseWatchGps")) {
-            var posInfo = Position.getInfo();
-            if (posInfo != null && posInfo.position != null) {
-                var latLon = posInfo.position.toDegrees();
-                var coordsStr = latLon[0].format("%.4f") + "," + latLon[1].format("%.4f");
-                Application.Properties.setValue("GpsCoordinates", coordsStr);
-                Application.Properties.setValue("LocationMode", 1); // GPS Mode
-                item.setSubLabel("Saved: " + coordsStr);
-            } else {
-                item.setSubLabel("No GPS Fix");
-            }
-            WatchUi.requestUpdate();
-        } else if (id.equals("UsePhone")) {
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        }
     }
 }
