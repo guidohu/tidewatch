@@ -42,7 +42,8 @@ class TideWatchView extends WatchUi.WatchFace {
     var mcTideUnitApi as Number? = null;
     var mcSwellUnitApi as Number? = null;
     var mcSpotName as String? = null;
-    var mDisplayError as Number? = null;
+    var mSyncError as Number? = null;
+    var mErrorAt as Number? = null;
 
     function initialize() {
         WatchFace.initialize();
@@ -99,9 +100,8 @@ class TideWatchView extends WatchUi.WatchFace {
             mcTideUnitApi = Application.Storage.getValue("tideUnitApi") as Number?;
             mcSwellUnitApi = Application.Storage.getValue("swellUnitApi") as Number?;
             mcSpotName = Application.Storage.getValue("spotName") as String?;
-            var tideError = Application.Storage.getValue("tideError") as Number?;
-            var waveError = Application.Storage.getValue("waveError") as Number?;
-            mDisplayError = (tideError != null) ? tideError : waveError;
+            mSyncError = Application.Storage.getValue("syncError") as Number?;
+            mErrorAt = Application.Storage.getValue("errorAt") as Number?;
 
             mCurrentHeight = 0.0;
             mIsRising = false;
@@ -273,18 +273,18 @@ class TideWatchView extends WatchUi.WatchFace {
 
         if (mcTideData == null || mcTideTimes == null || mcTideStartTime == null || mcTideInterval == null) {
             var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
-            if (mDisplayError != null) {
-                if (mDisplayError == DataKeys.ERROR_NO_SPOTS_NEARBY) {
+            if (mSyncError != null) {
+                if (mSyncError == DataKeys.ERROR_NO_SPOTS_NEARBY) {
                     msg = WatchUi.loadResource(Rez.Strings.NoSpotsFound) as String;
-                } else if (mDisplayError == -403) {
-                    msg = "Cannot retrieve\ntide/swell data (-403)";
-                } else if (mDisplayError <= -100 && mDisplayError > -200) {
-                    msg = "Phone connection\nrequired (" + mDisplayError + ")";
+                } else if (mSyncError == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE) {
+                    msg = "no data sync";
+                } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
+                    msg = "no connection";
                 } else {
-                    msg = "Sync Error: " + mDisplayError;
+                    msg = "sync error";
                 }
             }
-            dc.setColor(mDisplayError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.drawText(width / 2, height / 2, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
@@ -407,20 +407,25 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // Spot Name or Error
-        if (mDisplayError != null) {
-            var errMsg = "Sync Error: " + mDisplayError;
-            if (mDisplayError == -403) {
-                errMsg = "Cannot retrieve data (-403)";
-            } else if (mDisplayError <= -100 && mDisplayError > -200) {
-                errMsg = "Phone connection req. (" + mDisplayError + ")";
+        var isStale = (now - mLastDataUpdatedAt > 12 * 3600);
+        var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < 300));
+
+        if (showSyncError) {
+            var errMsg = "sync error";
+            if (mSyncError == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE) {
+                errMsg = "no data sync";
+            } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
+                errMsg = "no connection";
             }
             dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
             dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, errMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        } else {
-            if (mcSpotName != null) {
-                dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, mcSpotName as String, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else if (mcSpotName != null) {
+            var nameColor = baseColor;
+            if (isStale || mSyncError != null) {
+                nameColor = Graphics.COLOR_YELLOW;
             }
+            dc.setColor(nameColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, mcSpotName as String, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 

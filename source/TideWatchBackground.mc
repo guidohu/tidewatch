@@ -130,7 +130,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Mapview response code: " + responseCode);
         logMemoryUsage();
         
-        if (responseCode == -403 || responseCode == -402) {
+        if (responseCode == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE || responseCode == DataKeys.ERROR_NETWORK_RESPONSE_OUT_OF_MEM) {
             System.println("Background: Mapview payload too large. Retrying with smaller radius (current=" + mMapviewDistance + ").");
             if (mMapviewDistance > 0.0045) {
                 mMapviewDistance -= 0.0025;
@@ -210,7 +210,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                             Application.Storage.setValue("spotName", discoveredName);
                         } else {
                             System.println("No spots found in Mapview and no SpotID set.");
-                            Application.Storage.setValue("tideError", DataKeys.ERROR_NO_SPOTS_NEARBY);
+                            saveSyncError(DataKeys.ERROR_NO_SPOTS_NEARBY);
                             Background.exit(false);
                             return;
                         }
@@ -243,7 +243,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         
         mSpotId = Application.Properties.getValue("SpotId");
         if (mSpotId == null || mSpotId.equals("")) {
-            Application.Storage.setValue("tideError", DataKeys.ERROR_NO_SPOTS_NEARBY);
+            saveSyncError(DataKeys.ERROR_NO_SPOTS_NEARBY);
             Background.exit(false);
             return;
         }
@@ -275,7 +275,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             makeWaveRequest();
             return;
         }
-        Application.Storage.setValue("tideError", responseCode);
+        saveSyncError(responseCode);
         Background.exit(false);
     }
     
@@ -290,8 +290,9 @@ class TideWatchBackground extends System.ServiceDelegate {
                 Application.Storage.setValue("waveData", waveResults);
                 waveResults = null; // Reclaim memory
             }
+            clearSyncError();
         } else {
-            Application.Storage.setValue("waveError", responseCode);
+            saveSyncError(responseCode);
         }
 
         // If we don't have a name yet, try to resolve it using coordinates from Wave API
@@ -700,5 +701,15 @@ class TideWatchBackground extends System.ServiceDelegate {
         waveItem.put("swells", top3);
         top3 = null;
         topImpacts = null;
+    }
+
+    function saveSyncError(code as Number) as Void {
+        Application.Storage.setValue("syncError", code);
+        Application.Storage.setValue("errorAt", Time.now().value());
+    }
+
+    function clearSyncError() as Void {
+        Application.Storage.deleteValue("syncError");
+        Application.Storage.deleteValue("errorAt");
     }
 }

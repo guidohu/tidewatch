@@ -265,8 +265,8 @@ class NearbySpotDelegate extends WatchUi.Menu2InputDelegate {
         Application.Storage.setValue("tideInterval", null);
         Application.Storage.setValue("tideExtrema", null);
         Application.Storage.setValue("waveData", null);
-        Application.Storage.deleteValue("tideError");
-        Application.Storage.deleteValue("waveError");
+        Application.Storage.deleteValue("syncError");
+        Application.Storage.deleteValue("errorAt");
         Application.Storage.setValue("dataUpdatedAt", 0);
 
         // Trigger an immediate background sync for the new spot.

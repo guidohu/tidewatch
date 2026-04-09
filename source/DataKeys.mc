@@ -23,5 +23,10 @@ module DataKeys {
         UNIT_METER = 18,
         UNIT_FEET = 19,
         ERROR_NO_SPOTS_NEARBY = -500,
+        ERROR_NETWORK_RESPONSE_TOO_LARGE = -403,
+        ERROR_NETWORK_RESPONSE_OUT_OF_MEM = -402,
+        ERROR_PHONE_CONN_MIN = -200,
+        ERROR_PHONE_CONN_MAX = -100,
+        ERROR_NETWORK_TIMEOUT = -300,
     }
 }

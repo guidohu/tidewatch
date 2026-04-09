@@ -27,12 +27,7 @@ class TideWatchApp extends Application.AppBase {
         if (System has :ServiceDelegate) {
             try {
                 var tideData = Application.Storage.getValue("tideData");
-                if (tideData == null) {
-                    // Fastest possible scheduling allowed by Garmin OS for new installations
-                    Background.registerForTemporalEvent(new Time.Duration(5 * 60));
-                } else {
-                    Background.registerForTemporalEvent(new Time.Duration(15 * 60));
-                }
+                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
             } catch (e) {
                 System.println("Background error: " + e.getErrorMessage());
             }
@@ -70,10 +65,10 @@ class TideWatchApp extends Application.AppBase {
         WatchUi.requestUpdate();
         logMemoryUsage();
         
-        // Switch to periodic 15-minute intervals after the first accelerated sync
+        // Configure periodic 5-minute intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
             try {
-                Background.registerForTemporalEvent(new Time.Duration(15 * 60));
+                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
             } catch (e) {
                 System.println("Background registration error: " + e.getErrorMessage());
             }
