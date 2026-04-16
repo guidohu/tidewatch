@@ -35,9 +35,8 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         var showDate = Application.Properties.getValue("ShowDate") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(WatchUi.loadResource(Rez.Strings.ShowDateTitle) as String, null, "ShowDate", showDate, {}));
 
-        var timeFormat = Application.Properties.getValue("TimeFormat");
-        if (timeFormat == null) { timeFormat = 0; }
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TimeFormatTitle) as String, getTimeFormatName(timeFormat as Number), "TimeFormat", {}));
+        var timeFormat = Application.Properties.getValue("TimeFormat") as Number;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TimeFormatTitle) as String, getTimeFormatName(timeFormat), "TimeFormat", {}));
 
         var baseColor = Application.Properties.getValue("BaseColor") as Number;
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.BaseColorTitle) as String, getColorName(baseColor), "BaseColor", {}));
