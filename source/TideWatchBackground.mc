@@ -10,12 +10,18 @@ class TideWatchBackground extends System.ServiceDelegate {
     /**
      * - DataKeys.TIDE_TIMES (15): Array<Number> (Precise timestamps matching TIDE_DATA entries)
      */
+    const MAPVIEW_DEFAULT_RADIUS = 0.0075;
+    const MAPVIEW_RESOLUTION_RADIUS = 0.0005;
+    const MAPVIEW_RETRY_STEP = 0.0025;
+    const MAPVIEW_MIN_RETRY_RADIUS = 0.0045;
+    const MAPVIEW_MAX_RADIUS = 0.02;
+
     var mSpotId = null;
     var mTargetLat = null;
     var mTargetLon = null;
     var mSpotLat = null;
     var mSpotLon = null;
-    var mMapviewDistance = 0.0075;
+    var mMapviewDistance = MAPVIEW_DEFAULT_RADIUS;
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -28,7 +34,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function onTemporalEvent() as Void {
-        mMapviewDistance = 0.0075;
+        mMapviewDistance = MAPVIEW_DEFAULT_RADIUS;
         
         var gpsStr = Application.Properties.getValue("GpsCoordinates"); 
         System.println("Application.Properties.GpsCoordinates: " + gpsStr);
@@ -89,7 +95,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeMapviewResolutionRequest(lat, lon) as Void {
-        var dist = 0.0005; // Tight radius for specific resolution
+        var dist = MAPVIEW_RESOLUTION_RADIUS; // Tight radius for specific resolution
         var south = lat - dist;
         var north = lat + dist;
         var west = lon - dist;
@@ -105,7 +111,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeTideRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/tides?units=m&spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineTideInterval;
+        var url = "https://services.surfline.com/kbyg/spots/forecasts/tides?units=m&spotId=" + mSpotId + "&days=" + Constants.SURFLINE_TIME_WINDOW_DAYS + "&intervalHours=" + Constants.SURFLINE_TIDE_INTERVAL_HOURS;
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
@@ -117,7 +123,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeWaveRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/wave?spotId=" + mSpotId + "&days=2&intervalHours=" + Constants.SurflineWaveInterval;
+        var url = "https://services.surfline.com/kbyg/spots/forecasts/wave?spotId=" + mSpotId + "&days=" + Constants.SURFLINE_TIME_WINDOW_DAYS + "&intervalHours=" + Constants.SURFLINE_WAVE_INTERVAL_HOURS;
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
@@ -132,8 +138,8 @@ class TideWatchBackground extends System.ServiceDelegate {
         
         if (responseCode == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE || responseCode == DataKeys.ERROR_NETWORK_RESPONSE_OUT_OF_MEM) {
             System.println("Background: Mapview payload too large. Retrying with smaller radius (current=" + mMapviewDistance + ").");
-            if (mMapviewDistance > 0.0045) {
-                mMapviewDistance -= 0.0025;
+            if (mMapviewDistance > MAPVIEW_MIN_RETRY_RADIUS) {
+                mMapviewDistance -= MAPVIEW_RETRY_STEP;
                 makeMapviewRequest();
                 return;
             }
@@ -231,8 +237,8 @@ class TideWatchBackground extends System.ServiceDelegate {
                     top10 = null;
                     makeTideRequest();
                     return;
-                } else if (mMapviewDistance < 0.02) {
-                    mMapviewDistance += 0.0025;
+                } else if (mMapviewDistance < MAPVIEW_MAX_RADIUS) {
+                    mMapviewDistance += MAPVIEW_RETRY_STEP;
                     System.println("Mapview: No spots found. Retrying with larger radius (current=" + mMapviewDistance + ").");
                     data = null;
                     makeMapviewRequest();
@@ -376,7 +382,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 Application.Storage.setValue("tideTimes", gridTimes);
                 Application.Storage.setValue("tideData", gridHeights);
                 Application.Storage.setValue("tideStartTime", startTime);
-                Application.Storage.setValue("tideInterval", Constants.SurflineTideInterval * 3600);
+                Application.Storage.setValue("tideInterval", Constants.SURFLINE_TIDE_INTERVAL_HOURS * Constants.SECONDS_IN_HOUR);
                 
                 gridHeights = null;
                 gridTimes = null;

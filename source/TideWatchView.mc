@@ -9,6 +9,13 @@ import Toybox.WatchUi;
 
 class TideWatchView extends WatchUi.WatchFace {
 
+    const METERS_TO_FEET = 3.28084;
+    const STALE_DATA_THRESHOLD_SEC = 43200; // 12 hours
+    const ERROR_DISPLAY_WINDOW_SEC = 300;   // 5 minutes
+    const GRAPH_PAST_HOURS = 2;
+    const GRAPH_FUTURE_HOURS = 16;
+    const SCREEN_WIDTH_REFERENCE = 416.0;
+
     var mLastLazyDataUpdate as Number = 0;
     var mLastSettingsHash as Number = 0;
     var mLastDataUpdatedAt as Number = 0;
@@ -59,8 +66,8 @@ class TideWatchView extends WatchUi.WatchFace {
         var now = Time.now().value();
         var tideUnits = Application.Properties.getValue("TideUnits");
         var swellUnits = Application.Properties.getValue("SwellUnits");
-        var targetTideUnit = (tideUnits == 1) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
-        var targetSwellUnit = (swellUnits == 1) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var targetTideUnit = (tideUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var targetSwellUnit = (swellUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
         var tideColorIdx = Application.Properties.getValue("TideColor");
         var graphColorIdx = Application.Properties.getValue("GraphColor");
         var baseColorIdx = Application.Properties.getValue("BaseColor");
@@ -78,7 +85,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var dataUpdatedAt = Application.Storage.getValue("dataUpdatedAt") as Number?;
         if (dataUpdatedAt == null) { dataUpdatedAt = 0; }
 
-        if (now - mLastLazyDataUpdate >= 300 || currentHash != mLastSettingsHash || dataUpdatedAt != mLastDataUpdatedAt) {
+        if (now - mLastLazyDataUpdate >= Constants.DATA_UPDATE_INTERVAL_SEC || currentHash != mLastSettingsHash || dataUpdatedAt != mLastDataUpdatedAt) {
             mLastLazyDataUpdate = now;
             mLastSettingsHash = currentHash;
             mLastDataUpdatedAt = dataUpdatedAt;
@@ -112,8 +119,8 @@ class TideWatchView extends WatchUi.WatchFace {
             mMaxH = -9999.0;
             mMinSwellH = 9999.0;
             mMaxSwellH = -9999.0;
-            mMinT = now - 2 * 3600;
-            mMaxT = now + 16 * 3600;
+            mMinT = now - GRAPH_PAST_HOURS * Constants.SECONDS_IN_HOUR;
+            mMaxT = now + GRAPH_FUTURE_HOURS * Constants.SECONDS_IN_HOUR;
 
             if (mcTideData != null && mcTideTimes != null && mcTideTimes.size() == mcTideData.size()) {
                 var found = false;
@@ -202,7 +209,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
                 for (var i = 0; i < tDataArray.size(); i++) {
                     var tTs = tTimesArray[i] as Number;
-                    if (tTs >= mMinT - 3600 && tTs <= mMaxT + 3600) {
+                    if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
                         var h = tDataArray[i];
                         if (h != null) {
                             var hFloat = convertHeight(h as Number, mcTideUnitApi, DataKeys.UNIT_METER);
@@ -217,7 +224,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     for (var i = 0; i < wDataArray.size(); i++) {
                         if (i < tTimesArray.size()) {
                             var tTs = tTimesArray[i] as Number;
-                            if (tTs >= mMinT - 3600 && tTs <= mMaxT + 3600) {
+                            if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
                                 var wPoint = wDataArray[i] as Array;
                                 for (var s = 0; s < 3; s++) {
                                     var hVal = wPoint[s*3];
@@ -245,7 +252,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         var width = dc.getWidth();
         var height = dc.getHeight();
-        var scale = width / 416.0;
+        var scale = width / SCREEN_WIDTH_REFERENCE;
 
         // 1. Draw Time/Battery (always rendered with current time)
         var clockTime = System.getClockTime();
@@ -407,8 +414,8 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // Spot Name or Error
-        var isStale = (now - mLastDataUpdatedAt > 12 * 3600);
-        var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < 300));
+        var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
+        var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
         if (showSyncError) {
             var errMsg = "sync error";
@@ -430,7 +437,7 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     function drawArrow(dc as Dc, x as Number, y as Number, isRising as Boolean) as Void {
-        var s = dc.getWidth() / 416.0;
+        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
         var sz = (8 * s).toNumber();
         var pts;
         
@@ -445,7 +452,7 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     function drawSwellArrow(dc as Dc, x as Number, y as Number, direction as Float) as Void {
-        var s = dc.getWidth() / 416.0;
+        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
         var rad = (direction + 180.0) * Math.PI / 180.0;
         var cos = Math.cos(rad);
         var sin = Math.sin(rad);
@@ -469,7 +476,7 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     function drawBattery(dc as Dc, x as Number, y as Number, battery as Float, colorPrimary as Number) as Void {
-        var s = dc.getWidth() / 416.0;
+        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
         var width = (24 * s).toNumber();
         var height = (12 * s).toNumber();
         var tipWidth = (2 * s).toNumber();
@@ -516,18 +523,18 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     function getColorFromIndex(idx as Number) as Number {
-        if (idx == 1) { return Graphics.COLOR_PINK; }
-        if (idx == 2) { return Graphics.COLOR_RED; }
-        if (idx == 3) { return Graphics.COLOR_GREEN; }
-        if (idx == 4) { return Graphics.COLOR_WHITE; }
-        if (idx == 5) { return Graphics.COLOR_YELLOW; }
-        if (idx == 6) { return Graphics.COLOR_ORANGE; }
-        if (idx == 7) { return Graphics.COLOR_PURPLE; }
-        if (idx == 8) { return Graphics.COLOR_LT_GRAY; }
-        if (idx == 9) { return Graphics.COLOR_DK_GRAY; }
-        if (idx == 10) { return 0x55AAFF; } // Light Blue
-        if (idx == 11) { return 0x005F6B; } // Petrol
-        if (idx == 12) { return 0x00CCCC; } // Turquoise
+        if (idx == DataKeys.SETTING_COLOR_PINK) { return Graphics.COLOR_PINK; }
+        if (idx == DataKeys.SETTING_COLOR_RED) { return Graphics.COLOR_RED; }
+        if (idx == DataKeys.SETTING_COLOR_GREEN) { return Graphics.COLOR_GREEN; }
+        if (idx == DataKeys.SETTING_COLOR_WHITE) { return Graphics.COLOR_WHITE; }
+        if (idx == DataKeys.SETTING_COLOR_YELLOW) { return Graphics.COLOR_YELLOW; }
+        if (idx == DataKeys.SETTING_COLOR_ORANGE) { return Graphics.COLOR_ORANGE; }
+        if (idx == DataKeys.SETTING_COLOR_PURPLE) { return Graphics.COLOR_PURPLE; }
+        if (idx == DataKeys.SETTING_COLOR_LT_GRAY) { return Graphics.COLOR_LT_GRAY; }
+        if (idx == DataKeys.SETTING_COLOR_DK_GRAY) { return Graphics.COLOR_DK_GRAY; }
+        if (idx == DataKeys.SETTING_COLOR_LIGHT_BLUE) { return 0x55AAFF; } // Light Blue
+        if (idx == DataKeys.SETTING_COLOR_PETROL) { return 0x005F6B; } // Petrol
+        if (idx == DataKeys.SETTING_COLOR_TURQUOISE) { return 0x00CCCC; } // Turquoise
         return Graphics.COLOR_BLUE; // Default/0
     }
 
@@ -540,11 +547,11 @@ class TideWatchView extends WatchUi.WatchFace {
         
         // API is Meters (18), Target is Feet (19)
         if (apiUnit == DataKeys.UNIT_METER && targetUnit == DataKeys.UNIT_FEET) {
-            return valFloat * 3.28084;
+            return valFloat * METERS_TO_FEET;
         }
         // API is Feet (19), Target is Meters (18)
         if (apiUnit == DataKeys.UNIT_FEET && targetUnit == DataKeys.UNIT_METER) {
-            return valFloat / 3.28084;
+            return valFloat / METERS_TO_FEET;
         }
         return valFloat;
     }

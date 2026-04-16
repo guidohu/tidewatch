@@ -60,9 +60,9 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
     }
 
     function getUnitName(index as Number) as String {
-        if (index == 0) {
+        if (index == DataKeys.SETTING_UNIT_METERS) {
             return WatchUi.loadResource(Rez.Strings.UnitsMeters) as String;
-        } else if (index == 1) {
+        } else if (index == DataKeys.SETTING_UNIT_FEET) {
             return WatchUi.loadResource(Rez.Strings.UnitsFeet) as String;
         }
         return "Unknown";
@@ -151,8 +151,8 @@ class UnitMenu extends WatchUi.Menu2 {
         }
         Menu2.initialize({:title=>titleStr});
         
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UnitsMeters) as String, null, 0, {}));
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UnitsFeet) as String, null, 1, {}));
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UnitsMeters) as String, null, DataKeys.SETTING_UNIT_METERS, {}));
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UnitsFeet) as String, null, DataKeys.SETTING_UNIT_FEET, {}));
     }
 }
 

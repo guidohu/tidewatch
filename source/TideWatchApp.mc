@@ -26,8 +26,7 @@ class TideWatchApp extends Application.AppBase {
     function getInitialView() {
         if (System has :ServiceDelegate) {
             try {
-                var tideData = Application.Storage.getValue("tideData");
-                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
+                Background.registerForTemporalEvent(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
             } catch (e) {
                 System.println("Background error: " + e.getErrorMessage());
             }
@@ -65,10 +64,10 @@ class TideWatchApp extends Application.AppBase {
         WatchUi.requestUpdate();
         logMemoryUsage();
         
-        // Configure periodic 5-minute intervals after the first accelerated sync
+        // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
             try {
-                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
+                Background.registerForTemporalEvent(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
             } catch (e) {
                 System.println("Background registration error: " + e.getErrorMessage());
             }
