@@ -9,11 +9,19 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         Menu2.initialize({:title=>"Settings"});
         
         var spotId = Application.Properties.getValue("SpotId");
+        if (spotId == null || spotId.equals("")) {
+            spotId = Application.Storage.getValue("spotId");
+        }
+        
         var subLabel = Application.Properties.getValue("SpotName");
+        if (subLabel == null || subLabel.equals("")) {
+            subLabel = Application.Storage.getValue("spotName");
+        }
+        
         if (subLabel == null || subLabel.equals("")) {
             subLabel = (spotId != null && !spotId.equals("")) ? spotId as String : "None Selected";
         }
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String, subLabel, "SurfSpot", {}));
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String, subLabel as String, "SurfSpot", {}));
 
         var tideUnit = Application.Properties.getValue("TideUnits") as Number;
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideUnitsTitle) as String, getUnitName(tideUnit), "TideUnits", {}));
@@ -26,6 +34,10 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
 
         var showDate = Application.Properties.getValue("ShowDate") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(WatchUi.loadResource(Rez.Strings.ShowDateTitle) as String, null, "ShowDate", showDate, {}));
+
+        var timeFormat = Application.Properties.getValue("TimeFormat");
+        if (timeFormat == null) { timeFormat = 0; }
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TimeFormatTitle) as String, getTimeFormatName(timeFormat as Number), "TimeFormat", {}));
 
         var baseColor = Application.Properties.getValue("BaseColor") as Number;
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.BaseColorTitle) as String, getColorName(baseColor), "BaseColor", {}));
@@ -67,6 +79,12 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         }
         return "Unknown";
     }
+
+    function getTimeFormatName(index as Number) as String {
+        if (index == DataKeys.TIME_FORMAT_24_H) { return WatchUi.loadResource(Rez.Strings.Format24Hour) as String; }
+        if (index == DataKeys.TIME_FORMAT_12_H) { return WatchUi.loadResource(Rez.Strings.Format12Hour) as String; }
+        return "Unknown";
+    }
 }
 
 class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
@@ -82,6 +100,8 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.pushView(new ColorMenu(id, item), new ColorMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TideUnits") || id.equals("SwellUnits")) {
             WatchUi.pushView(new UnitMenu(id, item), new UnitMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
+        } else if (id.equals("TimeFormat")) {
+            WatchUi.pushView(new TimeFormatMenu(id, item), new UnitMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
         }
@@ -174,6 +194,14 @@ class UnitMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
+class TimeFormatMenu extends WatchUi.Menu2 {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
+        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.TimeFormatTitle) as String});
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Format24Hour) as String, null, DataKeys.TIME_FORMAT_24_H, {}));
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Format12Hour) as String, null, DataKeys.TIME_FORMAT_12_H, {}));
+    }
+}
+
 class SpotOptionMenu extends WatchUi.Menu2 {
     function initialize(parentItem as WatchUi.MenuItem) {
         Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String});
@@ -188,6 +216,9 @@ class SpotOptionMenu extends WatchUi.Menu2 {
         }
         
         var spotId = Application.Properties.getValue("SpotId");
+        if (spotId == null || spotId.equals("")) {
+            spotId = Application.Storage.getValue("spotId");
+        }
         var spotIdStr = spotId != null ? spotId as String : "";
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.EnterSpotIdMenuItem) as String, spotIdStr, "EnterSpotId", {}));
     }
@@ -256,6 +287,7 @@ class NearbySpotDelegate extends WatchUi.Menu2InputDelegate {
 
         // Update spotName immediately so main view knows what to show.
         Application.Storage.setValue("spotName", selectedName);
+        Application.Storage.setValue("spotId", selectedId);
         _parentItem.setSubLabel(selectedName);
 
         // Invalidate current data. This will trigger "Waiting for sync..." on main view.

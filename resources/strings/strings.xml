@@ -26,6 +26,9 @@
     <string id="ShowSwellGraphTitle">Show Swell in Graph</string>
     <string id="BaseColorTitle">Base Text Color</string>
     <string id="ShowDateTitle">Show Date and Day</string>
+    <string id="TimeFormatTitle">Time Format</string>
+    <string id="Format24Hour">24 Hours</string>
+    <string id="Format12Hour">12 Hours</string>
     <string id="SurfSpotTitle">Surf Spot</string>
     <string id="SelectFromList">Select from List</string>
     <string id="EnterSpotIdMenuItem">Enter Surfline SpotID</string>

@@ -73,6 +73,8 @@ class TideWatchView extends WatchUi.WatchFace {
         var baseColorIdx = Application.Properties.getValue("BaseColor");
         var showSwellGraph = Application.Properties.getValue("ShowSwellGraph");
         var showDate = Application.Properties.getValue("ShowDate");
+        var timeFormatVal = Application.Properties.getValue("TimeFormat");
+        var use24Hour = (timeFormatVal == null || timeFormatVal == DataKeys.TIME_FORMAT_24_H);
 
         var currentHash = (tideUnits == null ? 0 : tideUnits as Number) +
             ((swellUnits == null ? 0 : swellUnits as Number) << 2) +
@@ -80,7 +82,8 @@ class TideWatchView extends WatchUi.WatchFace {
             ((graphColorIdx == null ? 0 : graphColorIdx as Number) << 8) +
             ((baseColorIdx == null ? 0 : baseColorIdx as Number) << 12) +
             ((showSwellGraph ? 1 : 0) << 16) +
-            ((showDate ? 1 : 0) << 17);
+            ((showDate ? 1 : 0) << 17) +
+            ((use24Hour ? 1 : 0) << 18);
 
         var dataUpdatedAt = Application.Storage.getValue("dataUpdatedAt") as Number?;
         if (dataUpdatedAt == null) { dataUpdatedAt = 0; }
@@ -164,7 +167,13 @@ class TideWatchView extends WatchUi.WatchFace {
                             var typeCode = ext[2];
                             var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
                             var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
-                            var extTimeStr = Lang.format("$1$:$2$", [extInfo.hour.format("%02d"), extInfo.min.format("%02d")]);
+                            var extHour = extInfo.hour;
+                            var extAmPm = "";
+                            if (!use24Hour) {
+                                if (extHour >= 12) { extAmPm = "pm"; if (extHour > 12) { extHour -= 12; } }
+                                else { extAmPm = "am"; if (extHour == 0) { extHour = 12; } }
+                            }
+                            var extTimeStr = Lang.format("$1$:$2$$3$", [extHour.format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), extAmPm]);
                             var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
                             mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
                             break;
@@ -256,20 +265,61 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // 1. Draw Time/Battery (always rendered with current time)
         var clockTime = System.getClockTime();
-        var timeStr = Lang.format("$1$:$2$", [clockTime.hour.format("%02d"), clockTime.min.format("%02d")]);
+        var clockHour = clockTime.hour;
+        var clockAmPm = "";
+        if (!use24Hour) {
+            if (clockHour >= 12) { 
+                clockAmPm = "PM";
+                if (clockHour > 12) { 
+                    clockHour -= 12; 
+                } 
+            }
+            else { 
+                clockAmPm = "AM"; 
+                if (clockHour == 0) { 
+                    clockHour = 12; 
+                } 
+            }
+        }
+        var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(width / 2, height * 0.24, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        
+        var timeY = height * 0.24;
+        if (clockAmPm.length() > 0) {
+            var timeWidth = dc.getTextWidthInPixels(timeStr, Graphics.FONT_NUMBER_HOT);
+            var amPmWidth = dc.getTextWidthInPixels(clockAmPm, Graphics.FONT_XTINY);
+            var gap = (2 * scale).toNumber();
+            var totalW = timeWidth + gap + amPmWidth;
+            var startX = (width - totalW) / 2;
+            
+            dc.drawText(startX, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX + timeWidth + gap, timeY - (8 * scale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else {
+            dc.drawText(width / 2, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
 
         drawBattery(dc, width / 2, (height * 0.08).toNumber(), mBattery, baseColor);
 
         // 2. Error Check
         var spotId = Application.Properties.getValue("SpotId");
         if (spotId == null || spotId.equals("")) {
+             // If App Settings sync wiped out our dynamically set property, check Storage
+             // but DO NOT write back to Properties here, otherwise the user can never clear it!
+             spotId = Application.Storage.getValue("spotId") as String?;
+        }
+
+        if (spotId == null || spotId.equals("")) {
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
              msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {
                  var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
-                 msg += info.hour.format("%02d") + ":" + info.min.format("%02d");
+                 var updHour = info.hour;
+                 var updAmPm = "";
+                 if (!use24Hour) {
+                     if (updHour >= 12) { updAmPm = "pm"; if (updHour > 12) { updHour -= 12; } }
+                     else { updAmPm = "am"; if (updHour == 0) { updHour = 12; } }
+                 }
+                 msg += updHour.format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + updAmPm;
              } else {
                  msg += "pending";
              }

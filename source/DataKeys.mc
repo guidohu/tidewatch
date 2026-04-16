@@ -45,5 +45,8 @@ module DataKeys {
         SETTING_COLOR_LIGHT_BLUE = 10,
         SETTING_COLOR_PETROL = 11,
         SETTING_COLOR_TURQUOISE = 12,
+
+        TIME_FORMAT_24_H = 0,
+        TIME_FORMAT_12_H = 1,
     }
 }
