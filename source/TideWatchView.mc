@@ -167,13 +167,8 @@ class TideWatchView extends WatchUi.WatchFace {
                             var typeCode = ext[2];
                             var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
                             var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
-                            var extHour = extInfo.hour;
-                            var extAmPm = "";
-                            if (!use24Hour) {
-                                if (extHour >= 12) { extAmPm = "pm"; if (extHour > 12) { extHour -= 12; } }
-                                else { extAmPm = "am"; if (extHour == 0) { extHour = 12; } }
-                            }
-                            var extTimeStr = Lang.format("$1$:$2$$3$", [extHour.format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), extAmPm]);
+                            var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
+                            var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
                             var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
                             mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
                             break;
@@ -265,22 +260,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // 1. Draw Time/Battery (always rendered with current time)
         var clockTime = System.getClockTime();
-        var clockHour = clockTime.hour;
-        var clockAmPm = "";
-        if (!use24Hour) {
-            if (clockHour >= 12) { 
-                clockAmPm = "PM";
-                if (clockHour > 12) { 
-                    clockHour -= 12; 
-                } 
-            }
-            else { 
-                clockAmPm = "AM"; 
-                if (clockHour == 0) { 
-                    clockHour = 12; 
-                } 
-            }
-        }
+        var hourAmPmVal = formatHourAmPm(clockTime.hour, use24Hour, true);
+        var clockHour = hourAmPmVal[0];
+        var clockAmPm = hourAmPmVal[1];
         var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         
@@ -295,7 +277,7 @@ class TideWatchView extends WatchUi.WatchFace {
             dc.drawText(startX, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.drawText(startX + timeWidth + gap, timeY - (8 * scale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            dc.drawText(width / 2, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            drawCenteredText(dc, timeY, Graphics.FONT_NUMBER_HOT, timeStr, baseColor);
         }
 
         drawBattery(dc, width / 2, (height * 0.08).toNumber(), mBattery, baseColor);
@@ -313,18 +295,12 @@ class TideWatchView extends WatchUi.WatchFace {
              msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {
                  var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
-                 var updHour = info.hour;
-                 var updAmPm = "";
-                 if (!use24Hour) {
-                     if (updHour >= 12) { updAmPm = "pm"; if (updHour > 12) { updHour -= 12; } }
-                     else { updAmPm = "am"; if (updHour == 0) { updHour = 12; } }
-                 }
-                 msg += updHour.format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + updAmPm;
+                 var hourAmPm = formatHourAmPm(info.hour, use24Hour, false);
+                 msg += hourAmPm[0].format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + hourAmPm[1];
              } else {
                  msg += "pending";
              }
-             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-             dc.drawText(width / 2, height / 2, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+             drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, msg, baseColor);
              return;
         }
 
@@ -341,8 +317,8 @@ class TideWatchView extends WatchUi.WatchFace {
                     msg = "sync error";
                 }
             }
-            dc.setColor(mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height / 2, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            var errColor = mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY;
+            drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, msg, errColor);
             return;
         }
 
@@ -363,8 +339,7 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         if (mNextExtremaStr != null) {
-            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height * 0.67, Graphics.FONT_XTINY, mNextExtremaStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            drawCenteredText(dc, height * 0.67, Graphics.FONT_XTINY, mNextExtremaStr, baseColor);
         }
 
         // Swell Section
@@ -394,8 +369,7 @@ class TideWatchView extends WatchUi.WatchFace {
                 }
             }
         } else {
-            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height * 0.58, Graphics.FONT_XTINY, "No Swells", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "No Swells", baseColor);
         }
 
         // Graph Section
@@ -474,15 +448,13 @@ class TideWatchView extends WatchUi.WatchFace {
             } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                 errMsg = "no connection";
             }
-            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, errMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, errMsg, Graphics.COLOR_RED);
         } else if (mcSpotName != null) {
             var nameColor = baseColor;
             if (isStale || mSyncError != null) {
                 nameColor = Graphics.COLOR_YELLOW;
             }
-            dc.setColor(nameColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(width / 2, height * 0.95, Graphics.FONT_XTINY, mcSpotName as String, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, mcSpotName as String, nameColor);
         }
     }
 
@@ -586,6 +558,25 @@ class TideWatchView extends WatchUi.WatchFace {
         if (idx == DataKeys.SETTING_COLOR_PETROL) { return 0x005F6B; } // Petrol
         if (idx == DataKeys.SETTING_COLOR_TURQUOISE) { return 0x00CCCC; } // Turquoise
         return Graphics.COLOR_BLUE; // Default/0
+    }
+
+    function formatHourAmPm(hour as Number, use24Hour as Boolean, upperCase as Boolean) as Array {
+        var amPm = "";
+        if (!use24Hour) {
+            if (hour >= 12) {
+                amPm = upperCase ? "PM" : "pm";
+                if (hour > 12) { hour -= 12; }
+            } else {
+                amPm = upperCase ? "AM" : "am";
+                if (hour == 0) { hour = 12; }
+            }
+        }
+        return [hour, amPm];
+    }
+
+    function drawCenteredText(dc as Dc, y as Lang.Numeric, font, text as String, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(dc.getWidth() / 2, y, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     function convertHeight(rawValue as Number, apiUnit as Number?, targetUnit as Number) as Float {
