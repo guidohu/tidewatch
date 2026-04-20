@@ -3,25 +3,29 @@ import Toybox.WatchUi;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Position;
+import Toybox.Time;
+import Toybox.Background;
 
 class TideWatchSettingsMenu extends WatchUi.Menu2 {
     function initialize() {
         Menu2.initialize({:title=>"Settings"});
         
-        var spotId = Application.Properties.getValue("SpotId");
-        if (spotId == null || spotId.equals("")) {
-            spotId = Application.Storage.getValue("spotId");
+        var spotName = Application.Storage.getValue("spotName");
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        var subLabel = "";
+        if (spotName != null && spotName instanceof String && !spotName.equals("")) {
+            subLabel = spotName as String;
+        } else if (gpsLat != null && gpsLon != null && gpsLat instanceof String && gpsLon instanceof String && !gpsLat.equals("") && !gpsLon.equals("")) {
+            subLabel = gpsLat + ", " + gpsLon;
         }
-        
-        var subLabel = Application.Properties.getValue("SpotName");
-        if (subLabel == null || subLabel.equals("")) {
-            subLabel = Application.Storage.getValue("spotName");
-        }
-        
-        if (subLabel == null || subLabel.equals("")) {
-            subLabel = (spotId != null && !spotId.equals("")) ? spotId as String : "None Selected";
-        }
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String, subLabel as String, "SurfSpot", {}));
+
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UpdateLocationTitle) as String, subLabel, "UpdateLocation", {}));
+
+        var tideDatum = Application.Properties.getValue("TideDatum") as Number;
+        var datumStr = (tideDatum == 1) ? WatchUi.loadResource(Rez.Strings.DatumMSL) as String : WatchUi.loadResource(Rez.Strings.DatumMLLW) as String;
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideDatumTitle) as String, datumStr, "TideDatum", {}));
 
         var tideUnit = Application.Properties.getValue("TideUnits") as Number;
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.TideUnitsTitle) as String, getUnitName(tideUnit), "TideUnits", {}));
@@ -46,6 +50,13 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
 
         var graphColor = Application.Properties.getValue("GraphColor") as Number;
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.GraphColorTitle) as String, getColorName(graphColor), "GraphColor", {}));
+
+        var apiKeyStr = "Not Set";
+        var apiKey = Application.Properties.getValue("StormglassApiKey");
+        if (apiKey != null && apiKey instanceof String && apiKey.length() > 0) {
+            apiKeyStr = "Set";
+        }
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.StormglassApiKeyTitle) as String, apiKeyStr, "StormglassApiKey", {}));
     }
 
     function getColorName(index as Number) as String {
@@ -93,17 +104,121 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
     
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as String;
-        if (id.equals("SurfSpot")) {
-            WatchUi.pushView(new SpotOptionMenu(item), new SpotOptionMenuDelegate(item), WatchUi.SLIDE_LEFT);
+        if (id.equals("UpdateLocation")) {
+            WatchUi.pushView(new LocationOptionMenu(item), new LocationOptionMenuDelegate(item), WatchUi.SLIDE_LEFT);
+        } else if (id.equals("TideDatum")) {
+            WatchUi.pushView(new DatumMenu(id, item), new DatumMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("BaseColor") || id.equals("TideColor") || id.equals("GraphColor")) {
             WatchUi.pushView(new ColorMenu(id, item), new ColorMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TideUnits") || id.equals("SwellUnits")) {
             WatchUi.pushView(new UnitMenu(id, item), new UnitMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TimeFormat")) {
             WatchUi.pushView(new TimeFormatMenu(id, item), new UnitMenuDelegate(id, item), WatchUi.SLIDE_LEFT);
+        } else if (id.equals("StormglassApiKey")) {
+            item.setSubLabel(WatchUi.loadResource(Rez.Strings.SetInConnectIQ) as String);
+            WatchUi.requestUpdate();
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
         }
+    }
+}
+
+class LocationOptionMenu extends WatchUi.Menu2 {
+    function initialize(parentItem as WatchUi.MenuItem) {
+        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.UpdateLocationTitle) as String});
+        
+        var manualLat = Application.Properties.getValue("GpsLat");
+        var manualLon = Application.Properties.getValue("GpsLon");
+        var manualSub = "Not Set";
+        if (manualLat != null && manualLon != null && !manualLat.equals("") && !manualLon.equals("")) {
+            manualSub = (manualLat as String) + ", " + (manualLon as String);
+        }
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UseManualCoordinates) as String, manualSub, "Manual", {}));
+        
+        var gpsSub = "No signal";
+        var info = Position.getInfo();
+        if (info != null && info.position != null) {
+            var latLon = info.position.toDegrees();
+            gpsSub = latLon[0].format("%.4f") + ", " + latLon[1].format("%.4f");
+        }
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.UseWatchLocation) as String, gpsSub, "Watch", {}));
+    }
+}
+
+class LocationOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
+    private var _parentItem as WatchUi.MenuItem;
+    function initialize(parentItem as WatchUi.MenuItem) {
+        Menu2InputDelegate.initialize();
+        _parentItem = parentItem;
+    }
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        if (item.getId().equals("Manual")) {
+            item.setSubLabel(WatchUi.loadResource(Rez.Strings.SetInConnectIQ) as String);
+            WatchUi.requestUpdate();
+        } else if (item.getId().equals("Watch")) {
+            var info = Position.getInfo();
+            if (info != null && info.position != null) {
+                var latLon = info.position.toDegrees();
+                var lat = latLon[0].format("%.4f");
+                var lon = latLon[1].format("%.4f");
+                Application.Properties.setValue("GpsLat", lat);
+                Application.Properties.setValue("GpsLon", lon);
+                Application.Storage.deleteValue("spotName");
+                _parentItem.setSubLabel(lat + ", " + lon);
+                
+                // Invalidate data and refresh
+                Application.Storage.setValue("tideData", null);
+                Application.Storage.setValue("tideTimes", null);
+                Application.Storage.setValue("tideStartTime", null);
+                Application.Storage.setValue("tideInterval", null);
+                Application.Storage.setValue("tideExtrema", null);
+                Application.Storage.setValue("waveData", null);
+                Application.Storage.deleteValue("syncError");
+                Application.Storage.deleteValue("errorAt");
+                Application.Storage.setValue("dataUpdatedAt", 0);
+
+                if (Toybox has :Background) {
+                    try { 
+                        Background.registerForTemporalEvent(new Time.Duration(1));
+                    } catch (e) {
+                        // TODO: Handle error.
+                    }
+                }
+                WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            } else {
+                item.setSubLabel("No signal");
+                WatchUi.requestUpdate();
+            }
+        }
+    }
+}
+
+class DatumMenu extends WatchUi.Menu2 {
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
+        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.TideDatumTitle) as String});
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.DatumMLLW) as String, null, 0, {}));
+        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.DatumMSL) as String, null, 1, {}));
+    }
+}
+
+class DatumMenuDelegate extends WatchUi.Menu2InputDelegate {
+    private var _propertyId as String;
+    private var _parentItem as WatchUi.MenuItem;
+    function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
+        Menu2InputDelegate.initialize();
+        _propertyId = propertyId;
+        _parentItem = parentItem;
+    }
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        Application.Properties.setValue(_propertyId, item.getId() as Number);
+        _parentItem.setSubLabel(item.getLabel());
+        
+        Application.Storage.setValue("dataUpdatedAt", 0); // Invalidate data so it re-syncs
+        if (Toybox has :Background) {
+            try { Background.registerForTemporalEvent(new Time.Duration(1)); } catch (e) {}
+        }
+        
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
 }
 
@@ -198,119 +313,5 @@ class TimeFormatMenu extends WatchUi.Menu2 {
         Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.TimeFormatTitle) as String});
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Format24Hour) as String, null, DataKeys.TIME_FORMAT_24_H, {}));
         addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Format12Hour) as String, null, DataKeys.TIME_FORMAT_12_H, {}));
-    }
-}
-
-class SpotOptionMenu extends WatchUi.Menu2 {
-    function initialize(parentItem as WatchUi.MenuItem) {
-        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.SurfSpotTitle) as String});
-        
-        var gpsStr = Application.Properties.getValue("GpsCoordinates");
-        var hasCoords = (gpsStr != null && gpsStr instanceof String && gpsStr.length() > 0);
-        
-        if (hasCoords) {
-            addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SearchCustomCoordinates) as String, gpsStr as String, "SearchSpots", {}));
-        } else {
-            addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.SearchWatchGps) as String, null, "SearchSpots", {}));
-        }
-        
-        var spotId = Application.Properties.getValue("SpotId");
-        if (spotId == null || spotId.equals("")) {
-            spotId = Application.Storage.getValue("spotId");
-        }
-        var spotIdStr = spotId != null ? spotId as String : "";
-        addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.EnterSpotIdMenuItem) as String, spotIdStr, "EnterSpotId", {}));
-    }
-}
-
-class SpotOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
-    private var _parentItem as WatchUi.MenuItem;
-    
-    function initialize(parentItem as WatchUi.MenuItem) {
-        Menu2InputDelegate.initialize();
-        _parentItem = parentItem;
-    }
-
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var id = item.getId() as String;
-        if (id.equals("SearchSpots")) {
-            WatchUi.pushView(new NearbySpotMenu(_parentItem), new NearbySpotDelegate(_parentItem), WatchUi.SLIDE_LEFT);
-        } else if (id.equals("EnterSpotId")) {
-            item.setSubLabel("Use Phone App");
-            WatchUi.requestUpdate();
-        }
-    }
-}
-
-class NearbySpotMenu extends WatchUi.Menu2 {
-    function initialize(parentItem as WatchUi.MenuItem) {
-        Menu2.initialize({:title=>WatchUi.loadResource(Rez.Strings.SelectFromList) as String});
-        var spots = Application.Storage.getValue("NearbySpots");
-        
-        if (spots != null && spots instanceof Array && spots.size() > 0) {
-            for (var i = 0; i < spots.size(); i++) {
-                var sp = spots[i];
-                if (sp instanceof Array && sp.size() >= 2) {
-                    var name = sp[0] as String;
-                    var spotId = sp[1] as String;
-                    addItem(new WatchUi.MenuItem(name, null, spotId, {}));
-                }
-            }
-        } else {
-            addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.NoSpotsFound) as String, null, "None", {}));
-        }
-    }
-}
-
-class NearbySpotDelegate extends WatchUi.Menu2InputDelegate {
-    private var _parentItem as WatchUi.MenuItem;
-
-    function initialize(parentItem as WatchUi.MenuItem) {
-        Menu2InputDelegate.initialize();
-        _parentItem = parentItem;
-    }
-    
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var selectedId = item.getId() as String;
-        var selectedName = item.getLabel(); // Get the name from the menu item
-
-        if (selectedId.equals("None")) {
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
-            return;
-        }
-        
-        System.println("Set SpotId to " + selectedId + " (" + selectedName + ")");
-        Application.Properties.setValue("SpotId", selectedId);
-        Application.Properties.setValue("SpotName", selectedName);
-        Application.Storage.setValue("lastSpotId", selectedId);
-
-        // Update spotName immediately so main view knows what to show.
-        Application.Storage.setValue("spotName", selectedName);
-        Application.Storage.setValue("spotId", selectedId);
-        _parentItem.setSubLabel(selectedName);
-
-        // Invalidate current data. This will trigger "Waiting for sync..." on main view.
-        Application.Storage.setValue("tideData", null);
-        Application.Storage.setValue("tideTimes", null);
-        Application.Storage.setValue("tideStartTime", null);
-        Application.Storage.setValue("tideInterval", null);
-        Application.Storage.setValue("tideExtrema", null);
-        Application.Storage.setValue("waveData", null);
-        Application.Storage.deleteValue("syncError");
-        Application.Storage.deleteValue("errorAt");
-        Application.Storage.setValue("dataUpdatedAt", 0);
-
-        // Trigger an immediate background sync for the new spot.
-        if (Toybox has :Background) {
-            try {
-                Background.registerForTemporalEvent(new Time.Duration(1));
-            } catch (e) {
-                System.println("Background error: " + e.getErrorMessage());
-            }
-        }
-        
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        WatchUi.requestUpdate();
     }
 }

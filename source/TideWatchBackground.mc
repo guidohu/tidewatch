@@ -4,24 +4,23 @@ import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Position;
+import Toybox.Time;
+import Toybox.Time.Gregorian;
 
 (:background)
 class TideWatchBackground extends System.ServiceDelegate {
-    /**
-     * - DataKeys.TIDE_TIMES (15): Array<Number> (Precise timestamps matching TIDE_DATA entries)
-     */
-    const MAPVIEW_DEFAULT_RADIUS = 0.0075;
-    const MAPVIEW_RESOLUTION_RADIUS = 0.0005;
-    const MAPVIEW_RETRY_STEP = 0.0025;
-    const MAPVIEW_MIN_RETRY_RADIUS = 0.0045;
-    const MAPVIEW_MAX_RADIUS = 0.02;
 
-    var mSpotId = null;
-    var mTargetLat = null;
-    var mTargetLon = null;
-    var mSpotLat = null;
-    var mSpotLon = null;
-    var mMapviewDistance = MAPVIEW_DEFAULT_RADIUS;
+    var mApiKey as String? = null;
+    var mTargetLat as Float? = null;
+    var mTargetLon as Float? = null;
+    var mStart as Number? = null;
+    var mEnd as Number? = null;
+    var mTideEnd as Number? = null;
+    var mDatumStr as String = "MLLW";
+
+    // Variables perfectly matched to Stormglass's separated queries
+    var mParsedTideData as Array<Number>? = null;
+    var mParsedTideTimes as Array<Number>? = null;
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -34,679 +33,344 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function onTemporalEvent() as Void {
-        mMapviewDistance = MAPVIEW_DEFAULT_RADIUS;
-        
-        var gpsStr = Application.Properties.getValue("GpsCoordinates"); 
-        System.println("Application.Properties.GpsCoordinates: " + gpsStr);
-        if (gpsStr != null && gpsStr instanceof String && gpsStr.length() > 0) {
-            System.println("Custom coordinates defined: " + gpsStr);
-            var commaIdx = gpsStr.find(",");
-            if (commaIdx != null) {
-                var latStr = gpsStr.substring(0, commaIdx);
-                var lonStr = gpsStr.substring(commaIdx+1, gpsStr.length());
-                mTargetLat = latStr.toFloat();
-                mTargetLon = lonStr.toFloat();
-                System.println("Parsed Lat/Lon " + latStr + "/" + lonStr + " into: " + mTargetLat + "/" + mTargetLon);
-            }
-        } else {
-            // Without Custom Coordinates we use the watch GPS. To find the closest
-            // spots.
-            var posInfo = Position.getInfo();
-            System.println("Watch reports position:" + posInfo.position.toDegrees());
-            if (posInfo != null && posInfo.position != null) {
-                var latLon = posInfo.position.toDegrees();
-                mTargetLat = latLon[0];
-                mTargetLon = latLon[1];
-            }
-            System.println("Get position from watch Lat/Lon: " + mTargetLat + "/" + mTargetLon);
-        }
-        
-        if (mTargetLat != null && mTargetLon != null && mTargetLat < 179.99 && mTargetLon < 179.99) {
-            logMemoryUsage();
-            makeMapviewRequest();
-            System.println("onTemporalEvent() done (mapview path).");
-            return;
-        }
-        mSpotId = Application.Properties.getValue("SpotId");
-        if (mSpotId == null || mSpotId.equals("")) {
-            System.println("No spot selected and no GPS available. Exit.");
+        mApiKey = Application.Properties.getValue("StormglassApiKey");
+        if (mApiKey == null || mApiKey.equals("")) {
+            System.println("No Stormglass API Key. Exit.");
             Background.exit(false);
             return;
         }
 
-        logMemoryUsage();
-        makeTideRequest();
-        System.println("onTemporalEvent() done.");
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        if (gpsLat != null && gpsLat instanceof String && !gpsLat.equals("") && gpsLon != null && gpsLon instanceof String && !gpsLon.equals("")) {
+            mTargetLat = gpsLat.toFloat();
+            mTargetLon = gpsLon.toFloat();
+        } else {
+            System.println("No Custom Coordinates. Exit.");
+            Background.exit(false);
+            return;
+        }
+
+        var datumProp = Application.Properties.getValue("TideDatum");
+        if (datumProp == 1) {
+            mDatumStr = "MSL";
+        } else {
+            mDatumStr = "MLLW";
+        }
+
+        // Aligning exactly to the "Align Graphs" logic from 6 hours ago to 16 hours forward
+        var now = Time.now();
+        var startTs = now.subtract(new Time.Duration(4 * 3600));
+        var endTs = now.add(new Time.Duration(20 * 3600));
+        var tideEndTs = now.add(new Time.Duration(30 * 3600));
+
+        mStart = startTs.value();
+        mEnd = endTs.value();
+        mTideEnd = tideEndTs.value();
+
+        System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
+        makeBigDataCloudRequest();
     }
 
-    function makeMapviewRequest() as Void {
-        var south = mTargetLat - mMapviewDistance;
-        var north = mTargetLat + mMapviewDistance;
-        var west = mTargetLon - mMapviewDistance;
-        var east = mTargetLon + mMapviewDistance;
-        
-        var url = "https://services.surfline.com/kbyg/mapview?south=" + south + "&north=" + north + "&west=" + west + "&east=" + east;
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+    function handleQuotaError(responseCode as Number) as Boolean {
+        if (responseCode == 402 || responseCode == 429) {
+            System.println("Stormglass API Quota Exceeded (402/429)!");
+            saveSyncError(DataKeys.ERROR_QUOTA_EXCEEDED);
+            Background.exit(false);
+            return true;
+        }
+        return false;
+    }
+
+    function makeBigDataCloudRequest() as Void {
+        var url = "https://api.bigdatacloud.net/data/reverse-geocode-client";
+        var params = {
+            "latitude" => mTargetLat,
+            "longitude" => mTargetLon,
+            "localityLanguage" => "en"
         };
-        System.println("Requesting Mapview spots from: " + url);
-        Communications.makeWebRequest(url, null, options, method(:onReceiveMapviewResponse));
-    }
-
-    function makeMapviewResolutionRequest(lat, lon) as Void {
-        var dist = MAPVIEW_RESOLUTION_RADIUS; // Tight radius for specific resolution
-        var south = lat - dist;
-        var north = lat + dist;
-        var west = lon - dist;
-        var east = lon + dist;
-        
-        var url = "https://services.surfline.com/kbyg/mapview?south=" + south + "&north=" + north + "&west=" + west + "&east=" + east;
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-        };
-        System.println("Resolving name for " + mSpotId + " at " + lat + "/" + lon);
-        Communications.makeWebRequest(url, null, options, method(:onReceiveMapviewResolutionResponse));
-    }
-
-    function makeTideRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/tides?units=m&spotId=" + mSpotId + "&days=" + Constants.SURFLINE_TIME_WINDOW_DAYS + "&intervalHours=" + Constants.SURFLINE_TIDE_INTERVAL_HOURS;
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-        };
-        System.println("Requesting Tides from: " + url);
-        // onReceiveTideResponse will call makeWaveRequest. This way the request is sequential.
-        // This is done for memory reasons.
-        Communications.makeWebRequest(url, null, options, method(:onReceiveTideResponse));
-    }
-
-    function makeWaveRequest() as Void {
-        var url = "https://services.surfline.com/kbyg/spots/forecasts/wave?spotId=" + mSpotId + "&days=" + Constants.SURFLINE_TIME_WINDOW_DAYS + "&intervalHours=" + Constants.SURFLINE_WAVE_INTERVAL_HOURS;
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
         };
-        System.println("Requesting Waves from: " + url);
-        Communications.makeWebRequest(url, null, options, method(:onReceiveWaveResponse));
+        Communications.makeWebRequest(url, params, options, method(:onReceiveBigDataCloud));
     }
 
-    function onReceiveMapviewResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Mapview response code: " + responseCode);
-        logMemoryUsage();
-        
-        if (responseCode == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE || responseCode == DataKeys.ERROR_NETWORK_RESPONSE_OUT_OF_MEM) {
-            System.println("Background: Mapview payload too large. Retrying with smaller radius (current=" + mMapviewDistance + ").");
-            if (mMapviewDistance > MAPVIEW_MIN_RETRY_RADIUS) {
-                mMapviewDistance -= MAPVIEW_RETRY_STEP;
-                makeMapviewRequest();
-                return;
+    function onReceiveBigDataCloud(responseCode as Number, data as Dictionary?) as Void {
+        System.println("BigDataCloud response: " + responseCode);
+        if (responseCode != 200) { System.println("BigDataCloud data: " + data); }
+        var spotName = "Unknown";
+        if (responseCode == 200 && data != null) {
+            var locality = data.get("locality");
+            var city = data.get("city");
+            if (locality != null && locality instanceof String && !locality.equals("")) {
+                spotName = locality;
+            } else if (city != null && city instanceof String && !city.equals("")) {
+                spotName = city;
             }
         }
-        
-        // Extract the data structure under:
-        // "data" : {
-        //    "spots" : [
-        //       { "_id" : "6269dc2c441aa9ad66235f52", "name" : "Canggu", "lat" : -8.65, "lon" : 115.13 },
-        //       ...
-        //    ]
-        // }
-        if (responseCode == 200 && data != null && data instanceof Dictionary) {
-            var dataObj = data.get("data");
-            if (dataObj != null && dataObj instanceof Dictionary) {
-                var spots = dataObj.get("spots");
-                if (spots != null && spots instanceof Array && spots.size() > 0) {
-                    var top10 = [] as Array<Array>; // Stores [spotName, spotId, distSq]
-                    
-                    for (var i = 0; i < spots.size(); i++) {
-                        var spot = spots[i] as Dictionary;
-                        var sLat = spot.get("lat");
-                        var sLon = spot.get("lon");
-                        var spotId = spot.get("_id");
-                        var spotName = spot.get("name");
-                        // Early cleanup
-                        spot.remove("lat");
-                        spot.remove("lon");
-                        spot.remove("_id");
-                        spot.remove("name");
-                        
-                        if (sLat != null && sLon != null && spotId != null && spotName != null) {
-                            var sLatF = (sLat as Numeric).toFloat();
-                            var sLonF = (sLon as Numeric).toFloat();
-                            
-                            var dLat = sLatF - mTargetLat;
-                            var dLon = sLonF - mTargetLon;
-                            var distSq = dLat * dLat + dLon * dLon;
-                            
-                            // Insert into sorted top10 (insertion sort variant)
-                            var inserted = false;
-                            for (var j = 0; j < top10.size(); j++) {
-                                if (distSq < (top10[j] as Array)[2]) {
-                                    top10.add([] as Array); // Grow the array
-                                    for (var k = top10.size() - 1; k > j; k--) {
-                                        top10[k] = top10[k - 1];
-                                    }
-                                    top10[j] = [spotName as String, spotId as String, distSq] as Array;
-                                    inserted = true;
-                                    break;
-                                }
-                            }
-                            if (!inserted && top10.size() < 10) {
-                                top10.add([spotName as String, spotId as String, distSq]);
-                            }
-                            if (top10.size() > 10) {
-                                top10 = top10.slice(0, 10);
-                            }
-                        }
-                    }
-                    if (top10.size() > 10) { top10 = top10.slice(0, 10); }
-
-                    Application.Storage.setValue("NearbySpots", top10);
-                    System.println("NearbySpots stored");
-                    
-                    mSpotId = Application.Properties.getValue("SpotId");
-                    if (mSpotId == null || mSpotId.equals("")) {
-                        if (top10.size() > 0) {
-                            var firstEntry = top10[0] as Array;
-                            mSpotId = firstEntry[1] as String;
-                            var discoveredName = firstEntry[0] as String;
-                            System.println("Set SpotID to closest spot " + discoveredName + " / " + mSpotId);
-                            Application.Storage.setValue("spotId", mSpotId);
-                            Application.Storage.setValue("spotName", discoveredName);
-                        } else {
-                            System.println("No spots found in Mapview and no SpotID set.");
-                            saveSyncError(DataKeys.ERROR_NO_SPOTS_NEARBY);
-                            Background.exit(false);
-                            return;
-                        }
-                    }
-                    
-                    // Search for the name of the active mSpotId in our discovered top10 spots.
-                    for (var i = 0; i < top10.size(); i++) {
-                        var entry = top10[i] as Array;
-                        if (entry[1].equals(mSpotId)) {
-                            var name = entry[0] as String;
-                            System.println("Found spot name in top10: " + name);
-                            Application.Storage.setValue("spotName", name);
-                            break;
-                        }
-                    }
-                    
-                    data = null; // Free memory
-                    top10 = null;
-                    makeTideRequest();
-                    return;
-                } else if (mMapviewDistance < MAPVIEW_MAX_RADIUS) {
-                    mMapviewDistance += MAPVIEW_RETRY_STEP;
-                    System.println("Mapview: No spots found. Retrying with larger radius (current=" + mMapviewDistance + ").");
-                    data = null;
-                    makeMapviewRequest();
-                    return;
-                }
-            }
-        }
-        
-        mSpotId = Application.Properties.getValue("SpotId");
-        if (mSpotId == null || mSpotId.equals("")) {
-            saveSyncError(DataKeys.ERROR_NO_SPOTS_NEARBY);
-            Background.exit(false);
-            return;
-        }
+        Application.Storage.setValue("spotName", spotName);
+        System.println("Resolved spotName: " + spotName);
+        // Always proceed to the next request
         data = null;
-        makeTideRequest();
+        makeStormglassWeatherRequest();
     }
 
-    function onReceiveTideResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Tides response code: " + responseCode);
+    function makeStormglassWeatherRequest() as Void {
+        var url = "https://api.stormglass.io/v2/weather/point";
+        var params = {
+            "lat" => mTargetLat,
+            "lng" => mTargetLon,
+            "start" => mStart,
+            "end" => mEnd,
+            "params" => "swellHeight,swellPeriod,swellDirection,secondarySwellHeight,secondarySwellPeriod,secondarySwellDirection",
+            "source" => "noaa"
+        };
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :headers => { "Authorization" => mApiKey }
+        };
+        System.println("Requesting Stormglass Weather with: " + url + " parameters: " + params);
+        Communications.makeWebRequest(url, params, options, method(:onReceiveWeather));
+    }
+
+    function onReceiveWeather(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Weather response: " + responseCode);
+        if (responseCode != 200) { System.println("Weather data: " + data); }
         logMemoryUsage();
-        
-        // Extract the data structure under:
-        // "associated" : { "units" : { "tideHeight" : "M" } }
-        // "data" : {
-        //    "tides" : [
-        //       { "timestamp" : 1234567890, "type" : "HIGH", "height" : 1.23 },
-        //       { "timestamp" : 1234567890, "type" : "LOW", "height" : 1.23 },
-        //       ...
-        //    ]
-        // }
-        if (responseCode == 200 && data != null && data instanceof Dictionary) {
-            // Parse Tides and store results.
-            parseTideFromTideData(data);
-            parseTideUnitFromTideData(data);
+        if (handleQuotaError(responseCode)) { return; }
+
+        if (responseCode == 200 && data != null && data.hasKey("hours")) {
+            var hours = data.get("hours") as Array;
+            var waveResults = new Array<Array<Number?>>[hours.size()];
+            var waveTimes = new Array<Number>[hours.size()];
+            
+            for (var i = 0; i < hours.size(); i++) {
+                var hr = hours[i] as Dictionary;
+                waveTimes[i] = parseIso8601ToUnix(hr.get("time") as String);
                 
-            // Step 2: Clear memory and fetch Wave Data
-            logMemoryUsage();
+                var wPoint = new Array<Number?>[9];
+                
+                // Primary Swell
+                var h = extractSourceValue(hr.get("swellHeight"));
+                var p = extractSourceValue(hr.get("swellPeriod"));
+                var d = extractSourceValue(hr.get("swellDirection"));
+                if (h != null) { wPoint[0] = (h * 100.0).toNumber(); }
+                if (p != null) { wPoint[1] = p.toNumber(); }
+                if (d != null) { wPoint[2] = d.toNumber(); }
+
+                // Secondary Swell
+                var h2 = extractSourceValue(hr.get("secondarySwellHeight"));
+                var p2 = extractSourceValue(hr.get("secondarySwellPeriod"));
+                var d2 = extractSourceValue(hr.get("secondarySwellDirection"));
+                if (h2 != null) { wPoint[3] = (h2 * 100.0).toNumber(); }
+                if (p2 != null) { wPoint[4] = p2.toNumber(); }
+                if (d2 != null) { wPoint[5] = d2.toNumber(); }
+
+                waveResults[i] = wPoint;
+            }
+            
+            Application.Storage.setValue("waveData", waveResults);
+            Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
+            waveResults = null;
+            waveTimes = null;
             data = null;
-            makeWaveRequest();
+            makeStormglassTideRequest();
             return;
         }
+        
         saveSyncError(responseCode);
         Background.exit(false);
     }
-    
-    function onReceiveWaveResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Waves response code: " + responseCode);
-        logMemoryUsage();
-        
-        if (responseCode == 200 && data != null) {
-            parseSwellUnitFromWaveData(data);
-            var waveResults = parseWaveFromWaveData(data);
-            if (waveResults != null) {
-                Application.Storage.setValue("waveData", waveResults);
-                waveResults = null; // Reclaim memory
-            }
-            clearSyncError();
-        } else {
-            saveSyncError(responseCode);
-        }
 
-        // If we don't have a name yet, try to resolve it using coordinates from Wave API
-        var existingName = Application.Storage.getValue("spotName");
-        if (existingName == null && mSpotLat != null && mSpotLon != null) {
-            data = null;
-            makeMapviewResolutionRequest(mSpotLat, mSpotLon);
-            return;
-        }
-
-        Background.exit(true);
-        return;
+    function makeStormglassTideRequest() as Void {
+        var url = "https://api.stormglass.io/v2/tide/sea-level/point";
+        var params = {
+            "lat" => mTargetLat,
+            "lng" => mTargetLon,
+            "start" => mStart,
+            "end" => mTideEnd,
+            "datum" => mDatumStr
+        };
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :headers => { "Authorization" => mApiKey }
+        };
+        System.println("Requesting Stormglass Tide Sea-Level: " + url + " parameters: " + params);
+        Communications.makeWebRequest(url, params, options, method(:onReceiveTide));
     }
 
-    function onReceiveMapviewResolutionResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Mapview resolution response: " + responseCode);
+    function onReceiveTide(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Tide response: " + responseCode);
+        if (responseCode != 200) { System.println("Tide data: " + data); }
         logMemoryUsage();
-        if (responseCode == 200 && data != null && data instanceof Dictionary) {
-            var dataObj = data.get("data");
-            if (dataObj != null && dataObj instanceof Dictionary) {
-                var spots = dataObj.get("spots");
-                if (spots != null && spots instanceof Array) {
-                    for (var i = 0; i < spots.size(); i++) {
-                        var spot = spots[i] as Dictionary;
-                        if (spot.get("_id").equals(mSpotId)) {
-                            var name = spot.get("name") as String;
-                            System.println("Successfully resolved spot name: " + name);
-                            Application.Storage.setValue("spotName", name);
-                            break;
-                        }
-                        spots[i] = null;
-                    }
+        if (handleQuotaError(responseCode)) { return; }
+
+        if (responseCode == 200 && data != null && data.hasKey("data")) {
+            var pts = data.get("data") as Array;
+            var gridHeights = new Array<Number>[pts.size()];
+            var gridTimes = new Array<Number>[pts.size()];
+            
+            for (var i = 0; i < pts.size(); i++) {
+                var point = pts[i] as Dictionary;
+                gridTimes[i] = parseIso8601ToUnix(point.get("time") as String);
+                var h = point.get("sg");
+                if (h == null) { h = point.get("height"); }
+                if (h != null) {
+                    var hFloat = (h instanceof Number) ? (h as Number).toFloat() : h as Float;
+                    gridHeights[i] = (hFloat * 100.0).toNumber();
+                } else {
+                    gridHeights[i] = 0;
                 }
             }
-        }
-        Background.exit(true);
-    }
 
-    /**
-     * Parses the tide data from the Surfline API response.
-     * 
-     * The response data structure looks like this:
-     * "data" : {
-     *    "tides" : [
-     *       { "timestamp" : 1234567890, "type" : "HIGH", "height" : 1.23 },
-     *       { "timestamp" : 1234567890, "type" : "LOW", "height" : 1.23 },
-     *       ...
-     *    ]
-     * }
-     */
-    function parseTideFromTideData(data as Dictionary) {
-        var dataObj = data.get("data");
-        if (dataObj != null && dataObj instanceof Dictionary) {
-            var tides = dataObj.get("tides");
-            if (tides != null && tides instanceof Array && tides.size() > 0) {
-                // 1. Extract Extrema (HIGH/LOW) with precise timing
-                var extrema = [];
-                for (var i = 0; i < tides.size(); i++) {
-                    var tide = tides[i] as Dictionary;
-                    var typeStr = tide.get("type");
-                    if (typeStr != null && (typeStr.equals("HIGH") || typeStr.equals("LOW"))) {
-                        var typeCode = typeStr.equals("HIGH") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
-                        var height = (tide.get("height") as Float * 100.0).toNumber();
-                        extrema.add([tide.get("timestamp"), height, typeCode]);
-                    }
-                }
-                Application.Storage.setValue("tideExtrema", extrema);
-                extrema = null;
-                
-                // 2. Collect Grid Points and their Timestamps.
-                var gridHeights = new Array<Number>[tides.size()];
-                var gridTimes = new Array<Number>[tides.size()];
-                var startTime = (tides[0] as Dictionary).get("timestamp") as Number;
-                for (var i = 0; i < tides.size(); i++) {
-                    var tidePoint = (tides[i] as Dictionary);
-                    var ts = tidePoint.get("timestamp") as Number;
-                    var height = (tidePoint.get("height") as Float * 100.0).toNumber();
-                    gridHeights[i] = height;
-                    gridTimes[i] = ts;
-                }
+            if (gridTimes.size() > 0) {
+                Application.Storage.setValue("tideStartTime", gridTimes[0]);
                 Application.Storage.setValue("tideTimes", gridTimes);
                 Application.Storage.setValue("tideData", gridHeights);
-                Application.Storage.setValue("tideStartTime", startTime);
-                Application.Storage.setValue("tideInterval", Constants.SURFLINE_TIDE_INTERVAL_HOURS * Constants.SECONDS_IN_HOUR);
-                
-                gridHeights = null;
-                gridTimes = null;
-                
-                System.println("Saved grid tide data to storage");
+                Application.Storage.setValue("tideInterval", 3600); // 1 hour interval matches Stormglass exactly
+                Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
             }
+            
+            gridTimes = null;
+            gridHeights = null;
+            data = null;
+            makeStormglassExtremesRequest();
+            return;
+        }
+        
+        saveSyncError(responseCode);
+        Background.exit(false);
+    }
+
+    function makeStormglassExtremesRequest() as Void {
+        var url = "https://api.stormglass.io/v2/tide/extremes/point";
+        var params = {
+            "lat" => mTargetLat,
+            "lng" => mTargetLon,
+            "start" => mStart,
+            "end" => mTideEnd,
+            "datum" => mDatumStr
+        };
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :headers => { "Authorization" => mApiKey }
+        };
+        System.println("Requesting Stormglass Tide Extremes");
+        Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
+    }
+
+    function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Extremes response: " + responseCode);
+        if (responseCode != 200) { System.println("Extremes data: " + data); }
+        logMemoryUsage();
+        if (handleQuotaError(responseCode)) { return; }
+
+        if (responseCode == 200 && data != null && data.hasKey("data")) {
+            var pts = data.get("data") as Array;
+            var extrema = [];
+            
+            for (var i = 0; i < pts.size(); i++) {
+                var point = pts[i] as Dictionary;
+                var typeStr = point.get("type");
+                if (typeStr != null && (typeStr.equals("high") || typeStr.equals("low"))) {
+                    var typeCode = typeStr.equals("high") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
+                    var ts = parseIso8601ToUnix(point.get("time") as String);
+                    var hVal = point.get("height");
+                    if (hVal != null) {
+                        var hFloat = (hVal instanceof Number) ? (hVal as Number).toFloat() : hVal as Float;
+                        extrema.add([ts, (hFloat * 100.0).toNumber(), typeCode]);
+                    }
+                }
+            }
+
+            Application.Storage.setValue("tideExtrema", extrema);
+            
+            // Clean exit, successful sync pipeline
+            clearSyncError();
+            Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+            Background.exit(true);
+            return;
+        }
+        
+        saveSyncError(responseCode);
+        Background.exit(false);
+    }
+
+    function extractSourceValue(paramNode) as Float? {
+        if (paramNode == null) { return null; }
+        // Attempt dictionary extraction for stormglass format: [ {"source": "noaa", "value": 1.4}, ... ]
+        if (paramNode instanceof Array && paramNode.size() > 0) {
+            // First pass: look for noaa
+            for (var i=0; i<paramNode.size(); i++) {
+                var entry = paramNode[i] as Dictionary;
+                if (entry.hasKey("source") && (entry.get("source") as String).equals("noaa")) {
+                    var v = entry.get("value");
+                    return (v instanceof Number) ? (v as Number).toFloat() : v as Float;
+                }
+            }
+            // Second pass: look for sg fallback
+            for (var i=0; i<paramNode.size(); i++) {
+                var entry = paramNode[i] as Dictionary;
+                if (entry.hasKey("source") && (entry.get("source") as String).equals("sg")) {
+                    var v = entry.get("value");
+                    return (v instanceof Number) ? (v as Number).toFloat() : v as Float;
+                }
+            }
+            // Third pass: fallback to first available
+            var fallback = (paramNode[0] as Dictionary).get("value");
+            return (fallback instanceof Number) ? (fallback as Number).toFloat() : fallback as Float;
+        } else if (paramNode instanceof Dictionary) {
+             var v = paramNode.get("noaa");
+             if (v == null) { v = paramNode.get("sg"); }
+             if (v != null) {
+                return (v instanceof Number) ? (v as Number).toFloat() : v as Float;
+             }
         }
         return null;
     }
 
-    /**
-     * Parses the tide unit from the Surfline API response.
-     * 
-     * Data structure:
-     * "associated" : {
-     *   "units" : {
-     *     "tideHeight": "M",
-     *   }
-     * }
-     */
-    function parseTideUnitFromTideData(data as Dictionary) as Void {
-        var associated = data.get("associated");
-        if (associated != null && associated instanceof Dictionary) {
-            var units = associated.get("units");
-            if (units != null && units instanceof Dictionary) {
-                var tideUnitStr = units.get("tideHeight");
-                if (tideUnitStr != null && tideUnitStr.equals("M")) {
-                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
-                } else {
-                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_FEET);
-                }
-            }
-        }
+    function formatIso8601(moment as Time.Moment) as String {
+        var info = Gregorian.utcInfo(moment, Time.FORMAT_SHORT);
+        return Lang.format("$1$-$2$-$3$T$4$:$5$:00+00:00", [
+            info.year,
+            info.month.format("%02d"),
+            info.day.format("%02d"),
+            info.hour.format("%02d"),
+            info.min.format("%02d")
+        ]);
     }
 
-    /**
-     * Parses the swell unit from the Surfline API response.
-     * 
-     * Data structure:
-     * "associated" : {
-     *   "units" : {
-     *     "swellHeight": "M"
-     *   }
-     * }
-     */
-    function parseSwellUnitFromWaveData(data as Dictionary) as Void {
-        var associated = data.get("associated");
-        if (associated != null && associated instanceof Dictionary) {
-            var units = associated.get("units");
-            if (units != null && units instanceof Dictionary) {
-                var swellUnitStr = units.get("swellHeight");
-                if (swellUnitStr != null && swellUnitStr.equals("M")) {
-                    Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER);
-                } else {
-                    Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_FEET);
-                }
-            }
-        }
-    }
+    function parseIso8601ToUnix(iso as String) as Number {
+        // format "YYYY-MM-DDTHH:MM:SS+00:00"
+        var year = iso.substring(0, 4).toNumber();
+        var month = iso.substring(5, 7).toNumber();
+        var day = iso.substring(8, 10).toNumber();
+        var hour = iso.substring(11, 13).toNumber();
+        var min = iso.substring(14, 16).toNumber();
+        var sec = iso.substring(17, 19).toNumber();
 
-    /**
-     * Parses wave and swell data from the Surfline API response.
-     * 
-     * The response structure looks like this:
-     * {
-     *   "associated" : {
-     *     "units": { "swellHeight": "M" },
-     *     "location": { "lat": -8.65, "lon": 115.13 }
-     *   },
-     *   "data": {
-     *     "wave": [
-     *       {
-     *         "timestamp": 1774713600,
-     *         "swells": [
-     *           { "height": 1.83, "period": 12, "direction": 195.7, "impact": 0.7146 },
-     *           ...
-     *         ]
-     *       },
-     *       ...
-     *     ]
-     *   }
-     * }
-     * 
-     * We extract the data matching our tide timestamps and pick the top 3 swells 
-     * (sorted by impact) for each timestamp.
-     */
-    function parseWaveFromWaveData(data as Dictionary) as Array<Array<Number?>>? {
-        var dataObj = data.get("data");
-        if (dataObj == null || !(dataObj instanceof Dictionary)) {
-            return null;
+        // Days from 1970 to beginning of year
+        var yForLeap = year - 1;
+        var leapDays = (yForLeap / 4) - (yForLeap / 100) + (yForLeap / 400) - ((1970 - 1) / 4) + ((1970 - 1) / 100) - ((1970 - 1) / 400);
+        var days = (year - 1970) * 365 + leapDays;
+
+        var daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+            daysInMonth[1] = 29;
         }
 
-        var associated = data.get("associated");
-        if (associated != null && associated instanceof Dictionary) {
-            var location = associated.get("location");
-            if (location != null && location instanceof Dictionary) {
-                mSpotLat = location.get("lat");
-                mSpotLon = location.get("lon");
-                System.println("Extracted spot coordinates: " + mSpotLat + "/" + mSpotLon);
-            }
+        for (var i = 0; i < month - 1; i++) {
+            days += daysInMonth[i];
         }
 
-        // Remove stuff we do not need right from the beginning
-        data.remove("associated");
-        data.remove("permissions");
-        
-        var waveArray = dataObj.get("wave");
-        if (waveArray == null || !(waveArray instanceof Array) || waveArray.size() == 0) {
-            return null;
-        }
+        days += day - 1;
 
-        // 1. Pre-process raw data: extract top 3 swells by impact and only keep those
-        // going forward.
-        for (var i = 0; i < waveArray.size(); i++) {
-            var wavePoint = waveArray[i] as Dictionary;
-            // Remove keys we do not need right from the beginning
-            wavePoint.remove("probability");
-            wavePoint.remove("utcOffset");
-            wavePoint.remove("surf");
-            wavePoint.remove("power");
-            extractTop3Swells(wavePoint);
-        }
-
-        // 2. Get target timestamps from TIDE_TIMES
-        var targetTimes = Application.Storage.getValue("tideTimes") as Array<Number>?;
-        if (targetTimes == null || targetTimes.size() == 0) {
-            return null;
-        }
-
-        // 3. Generate interpolated points matching TIDE_TIMES (Single-pass tracker)
-        var totalPoints = targetTimes.size();
-        var itemsToKeep = new Array<Array<Number?>>[totalPoints];
-        var currentIndex = 0;
-        
-        for (var h = 0; h < totalPoints; h++) {
-            var targetTs = targetTimes[h];
-            
-            // Reclaim memory: Null out swells of points we've definitely passed
-            if (currentIndex > 0) {
-                var prevPoint = waveArray[currentIndex - 1] as Dictionary;
-                if (prevPoint.hasKey("swells")) {
-                    prevPoint.put("swells", null);
-                }
-            }
-
-            // Find flanking points in waveArray using single-pass approach
-            while (currentIndex < waveArray.size() - 1) {
-                var ts2 = (waveArray[currentIndex + 1] as Dictionary).get("timestamp") as Number;
-                if (ts2 >= targetTs) {
-                    break;
-                }
-                // Memory Reclaim: As we advance, null out the swells we won't need again
-                (waveArray[currentIndex] as Dictionary).put("swells", null);
-                currentIndex++;
-            }
-            
-            var resultPoint = new Array<Number?>[9];
-            var w1 = waveArray[currentIndex] as Dictionary;
-            var ts1 = w1.get("timestamp") as Number;
-
-            if (currentIndex < waveArray.size() - 1) {
-                var w2 = waveArray[currentIndex + 1] as Dictionary;
-                var ts2 = w2.get("timestamp") as Number;
-                
-                if (targetTs >= ts1 && targetTs <= ts2) {
-                    var ratio = (ts2 == ts1) ? 0.0 : (targetTs - ts1).toFloat() / (ts2 - ts1).toFloat();
-                    interpolateSwells(resultPoint, w1.get("swells") as Array?, w2.get("swells") as Array?, ratio);
-                } else if (targetTs < ts1) { // Clamping to first (shouldn't happen with correct while loop)
-                    extractSwells(resultPoint, w1.get("swells") as Array?);
-                } else { // targetTs > ts2 (shouldn't happen with correct while loop)
-                    extractSwells(resultPoint, w2.get("swells") as Array?);
-                }
-            } else {
-                // Clamping to last
-                extractSwells(resultPoint, w1.get("swells") as Array?);
-            }
-            
-            itemsToKeep[h] = resultPoint;
-        }
-
-        System.println("Prepared " + totalPoints + " interpolated items for waves");
-        targetTimes = null; // Free reference
-        waveArray = null;
-        logMemoryUsage();
-        return itemsToKeep;
-    }
-
-    function interpolateSwells(target as Array, s1Array as Array?, s2Array as Array?, ratio as Float) as Void {
-        for (var i = 1; i <= 3; i++) {
-            var s1 = (s1Array != null && s1Array.size() >= i) ? s1Array[i-1] as Dictionary : null;
-            var s2 = (s2Array != null && s2Array.size() >= i) ? s2Array[i-1] as Dictionary : null;
-            
-            if (s1 == null && s2 == null) { continue; }
-            
-            var hKey, pKey, dKey;
-            if (i == 1) { 
-                hKey = DataKeys.SWELL_1_HEIGHT; pKey = DataKeys.SWELL_1_PERIOD; dKey = DataKeys.SWELL_1_DIRECTION; 
-            } else if (i == 2) { 
-                hKey = DataKeys.SWELL_2_HEIGHT; pKey = DataKeys.SWELL_2_PERIOD; dKey = DataKeys.SWELL_2_DIRECTION; 
-            } else { 
-                hKey = DataKeys.SWELL_3_HEIGHT; pKey = DataKeys.SWELL_3_PERIOD; dKey = DataKeys.SWELL_3_DIRECTION; 
-            }
-
-            var hF = interpolateValue(s1, s2, "height", ratio, true) as Float;
-            target[hKey] = (hF * 100.0).toNumber();
-            target[pKey] = interpolateValue(s1, s2, "period", ratio, false) as Number;
-            target[dKey] = interpolateDirection(s1, s2, ratio).toNumber();
-        }
-    }
-
-    function extractSwells(target as Array, sArray as Array?) as Void {
-        for (var i = 1; i <= 3; i++) {
-            var s = (sArray != null && sArray.size() >= i) ? sArray[i-1] as Dictionary : null;
-            if (s == null) { continue; }
-            
-            var hKey, pKey, dKey;
-            if (i == 1) { 
-                hKey = DataKeys.SWELL_1_HEIGHT; pKey = DataKeys.SWELL_1_PERIOD; dKey = DataKeys.SWELL_1_DIRECTION; 
-            } else if (i == 2) { 
-                hKey = DataKeys.SWELL_2_HEIGHT; pKey = DataKeys.SWELL_2_PERIOD; dKey = DataKeys.SWELL_2_DIRECTION; 
-            } else { 
-                hKey = DataKeys.SWELL_3_HEIGHT; pKey = DataKeys.SWELL_3_PERIOD; dKey = DataKeys.SWELL_3_DIRECTION; 
-            }
-
-            var hVal = s.get("height");
-            if (hVal != null) {
-                var hF = (hVal instanceof Number) ? hVal.toFloat() : hVal as Float;
-                target[hKey] = (hF * 100.0).toNumber();
-            }
-            var pVal = s.get("period");
-            if (pVal != null) {
-                target[pKey] = (pVal instanceof Float) ? pVal.toNumber() : (pVal instanceof Double ? (pVal as Double).toNumber() : pVal as Number);
-            }
-            var dVal = s.get("direction");
-            if (dVal != null) {
-                target[dKey] = (dVal instanceof Float) ? dVal.toNumber() : (dVal instanceof Double ? (dVal as Double).toNumber() : dVal as Number);
-            }
-        }
-    }
-
-    function interpolateValue(s1 as Dictionary?, s2 as Dictionary?, key as String, ratio as Float, isFloat as Boolean) as Numeric {
-        var v1 = 0.0;
-        var v2 = 0.0;
-        if (s1 != null) { 
-            var val = s1.get(key);
-            v1 = (val instanceof Number) ? val.toFloat() : val as Float;
-        }
-        if (s2 != null) { 
-            var val = s2.get(key);
-            v2 = (val instanceof Number) ? val.toFloat() : val as Float;
-        }
-        
-        if (s1 == null) { v1 = v2; }
-        if (s2 == null) { v2 = v1; }
-        
-        var res = v1 + (v2 - v1) * ratio;
-        return isFloat ? res : res.toNumber();
-    }
-
-    function interpolateDirection(s1 as Dictionary?, s2 as Dictionary?, ratio as Float) as Float {
-        var d1 = 0.0;
-        var d2 = 0.0;
-        if (s1 != null) { 
-            var val = s1.get("direction");
-            d1 = (val instanceof Number) ? val.toFloat() : val as Float;
-        }
-        if (s2 != null) { 
-            var val = s2.get("direction");
-            d2 = (val instanceof Number) ? val.toFloat() : val as Float;
-        }
-        
-        if (s1 == null) { d1 = d2; }
-        if (s2 == null) { d2 = d1; }
-
-        var diff = d2 - d1;
-        while (diff > 180) { diff -= 360; }
-        while (diff < -180) { diff += 360; }
-        
-        var res = d1 + diff * ratio;
-        while (res < 0) { res += 360; }
-        while (res >= 360) { res -= 360; }
-        return res;
-    }
-
-    /**
-     * Evaluates all swells and takes only the 3 with the highest impact.
-     * Stores the result back into the waveItem dictionary.
-     */
-    function extractTop3Swells(waveItem as Dictionary) as Void {
-        var swells = waveItem.get("swells") as Array?;
-        if (swells == null || swells.size() <= 3) {
-            if (swells == null) { waveItem.put("swells", []); }
-            return;
-        }
-
-        var top3 = new Array<Dictionary>[3];
-        var topImpacts = [-1.0, -1.0, -1.0] as Array<Float>;
-
-        for (var i = 0; i < swells.size(); i++) {
-            var s = swells[i] as Dictionary;
-            var impactVal = s.get("impact");
-            var v = 0.0;
-            if (impactVal instanceof Number) { v = (impactVal as Number).toFloat(); } 
-            else if (impactVal instanceof Float) { v = impactVal as Float; } 
-            else if (impactVal instanceof Double) { v = (impactVal as Double).toFloat(); }
-            
-            // Aggressive cleaning: Remove keys we won't need for interpolation
-            s.remove("impact");
-            s.remove("power");
-
-            if (v > topImpacts[0]) {
-                topImpacts[2] = topImpacts[1]; top3[2] = top3[1];
-                topImpacts[1] = topImpacts[0]; top3[1] = top3[0];
-                topImpacts[0] = v; top3[0] = s;
-            } else if (v > topImpacts[1]) {
-                topImpacts[2] = topImpacts[1]; top3[2] = top3[1];
-                topImpacts[1] = v; top3[1] = s;
-            } else if (v > topImpacts[2]) {
-                topImpacts[2] = v; top3[2] = s;
-            }
-        }
-        waveItem.put("swells", top3);
-        top3 = null;
-        topImpacts = null;
+        return days * 86400 + hour * 3600 + min * 60 + sec;
     }
 
     function saveSyncError(code as Number) as Void {

@@ -1,13 +1,16 @@
 <resources>
     <string id="AppName">Tide Watch</string>
-    <string id="SpotIdTitle">Surfline Spot ID</string>
-    <string id="SpotIdPrompt">Enter Surfline Spot ID</string>
-    <string id="GpsCoordinatesTitle">GPS Coordinates (Lat,Lon)</string>
-    <string id="GpsCoordinatesPrompt">Enter Lat,Lon (e.g. -8.65,115.12)</string>
+    <string id="GpsLatTitle">GPS Latitude</string>
+    <string id="GpsLatPrompt">Enter Lat (e.g. -8.652)</string>
+    <string id="GpsLonTitle">GPS Longitude</string>
+    <string id="GpsLonPrompt">Enter Lon (e.g. 115.121)</string>
     <string id="TideUnitsTitle">Tide Units</string>
     <string id="SwellUnitsTitle">Swell Units</string>
     <string id="UnitsMeters">Meters</string>
     <string id="UnitsFeet">Feet</string>
+    <string id="TideDatumTitle">Tidal Datum</string>
+    <string id="DatumMLLW">MLLW</string>
+    <string id="DatumMSL">MSL</string>
     <string id="TideColorTitle">Tide Height Color</string>
     <string id="GraphColorTitle">Tide Graph Color</string>
     <string id="ColorWhite">White</string>
@@ -30,10 +33,12 @@
     <string id="Format24Hour">24 Hours</string>
     <string id="Format12Hour">12 Hours</string>
     <string id="SurfSpotTitle">Surf Spot</string>
-    <string id="SelectFromList">Select from List</string>
-    <string id="EnterSpotIdMenuItem">Enter Surfline SpotID</string>
-    <string id="NoSpotSelected">No Spot Selected\nSync can take up to\n15 mins for nearby spots.</string>
-    <string id="NoSpotsFound">No spots nearby. Set GPS in ConnectIQ.</string>
-    <string id="SearchWatchGps">Search via Watch GPS</string>
-    <string id="SearchCustomCoordinates">Search Custom Coordinates</string>
+    <string id="UpdateLocationTitle">Update Location</string>
+    <string id="UseWatchLocation">Use GPS</string>
+    <string id="UseManualCoordinates">Manual Coordinates</string>
+    <string id="NoSpotSelected">No Location Set\nConfigure in Settings.</string>
+    <string id="NoSpotsFound">No location nearby.</string>
+    <string id="StormglassApiKeyTitle">Stormglass API Key</string>
+    <string id="StormglassApiKeyPrompt">Enter Stormglass API Key</string>
+    <string id="SetInConnectIQ">Set in Connect IQ</string>
 </resources>

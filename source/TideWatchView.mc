@@ -93,14 +93,6 @@ class TideWatchView extends WatchUi.WatchFace {
             mLastSettingsHash = currentHash;
             mLastDataUpdatedAt = dataUpdatedAt;
 
-            var stats = System.getSystemStats();
-            mBattery = stats.battery;
-
-            var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-            var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
-            mDateStr = todayMed.day.format("%d") + " " + todayMed.month;
-            mDowStr = todayLong.day_of_week;
-
             mcTideData = Application.Storage.getValue("tideData") as Array?;
             mcTideTimes = Application.Storage.getValue("tideTimes") as Array?;
             mcTideStartTime = Application.Storage.getValue("tideStartTime") as Number?;
@@ -112,140 +104,150 @@ class TideWatchView extends WatchUi.WatchFace {
             mcSpotName = Application.Storage.getValue("spotName") as String?;
             mSyncError = Application.Storage.getValue("syncError") as Number?;
             mErrorAt = Application.Storage.getValue("errorAt") as Number?;
+        }
 
-            mCurrentHeight = 0.0;
-            mIsRising = false;
-            mNextExtremaStr = null;
-            mValidSwells = [];
-            mSwellTexts = [];
-            mMinH = 9999.0;
-            mMaxH = -9999.0;
-            mMinSwellH = 9999.0;
-            mMaxSwellH = -9999.0;
-            mMinT = now - GRAPH_PAST_HOURS * Constants.SECONDS_IN_HOUR;
-            mMaxT = now + GRAPH_FUTURE_HOURS * Constants.SECONDS_IN_HOUR;
+        // --- Continuous UI Calculations (Every Frame) ---
+        var stats = System.getSystemStats();
+        mBattery = stats.battery;
 
-            if (mcTideData != null && mcTideTimes != null && mcTideTimes.size() == mcTideData.size()) {
-                var found = false;
-                var currWaveIdx = -1;
-                var tTimesArray = mcTideTimes as Array;
-                var tDataArray = mcTideData as Array;
-                for (var i = 0; i < tTimesArray.size() - 1; i++) {
-                    var t1 = tTimesArray[i] as Number;
-                    var t2 = tTimesArray[i + 1] as Number;
-                    if (now >= t1 && now <= t2) {
-                        var h1 = convertHeight(tDataArray[i] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        var h2 = convertHeight(tDataArray[i + 1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
-                        mCurrentHeight = h1 + (h2 - h1) * ratio;
-                        mIsRising = h2 > h1;
-                        currWaveIdx = i;
-                        found = true;
+        var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
+        var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
+        mDateStr = todayMed.day.format("%d") + " " + todayMed.month;
+        mDowStr = todayLong.day_of_week;
+
+        mCurrentHeight = 0.0;
+        mIsRising = false;
+        mNextExtremaStr = null;
+        mValidSwells = [];
+        mSwellTexts = [];
+        mMinH = 9999.0;
+        mMaxH = -9999.0;
+        mMinSwellH = 9999.0;
+        mMaxSwellH = -9999.0;
+        mMinT = now - GRAPH_PAST_HOURS * Constants.SECONDS_IN_HOUR;
+        mMaxT = now + GRAPH_FUTURE_HOURS * Constants.SECONDS_IN_HOUR;
+
+        if (mcTideData != null && mcTideTimes != null && mcTideTimes.size() == mcTideData.size()) {
+            var found = false;
+            var currWaveIdx = -1;
+            var tTimesArray = mcTideTimes as Array;
+            var tDataArray = mcTideData as Array;
+            for (var i = 0; i < tTimesArray.size() - 1; i++) {
+                var t1 = tTimesArray[i] as Number;
+                var t2 = tTimesArray[i + 1] as Number;
+                if (now >= t1 && now <= t2) {
+                    var h1 = convertHeight(tDataArray[i] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                    var h2 = convertHeight(tDataArray[i + 1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                    var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
+                    mCurrentHeight = h1 + (h2 - h1) * ratio;
+                    mIsRising = h2 > h1;
+                    currWaveIdx = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                if (now < (tTimesArray[0] as Number)) {
+                    mCurrentHeight = convertHeight(tDataArray[0] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                    currWaveIdx = 0;
+                } else {
+                    mCurrentHeight = convertHeight(tDataArray[tDataArray.size() - 1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                    currWaveIdx = tDataArray.size() - 1;
+                }
+            }
+
+            var dispHeight = convertHeight((mCurrentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
+            mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
+            mTideNumStr = dispHeight.format("%.2f");
+
+            if (mcTideExtrema != null && mcTideExtrema instanceof Array) {
+                for (var i = 0; i < mcTideExtrema.size(); i++) {
+                    var ext = mcTideExtrema[i] as Array;
+                    if (ext[0] > now) {
+                        var extTs = ext[0] as Number;
+                        var rawExtH = ext[1] as Number;
+                        var typeCode = ext[2];
+                        var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
+                        var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
+                        var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
+                        var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
+                        var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
+                        mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
                         break;
                     }
                 }
-                if (!found) {
-                    if (now < (tTimesArray[0] as Number)) {
-                        mCurrentHeight = convertHeight(tDataArray[0] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        currWaveIdx = 0;
-                    } else {
-                        mCurrentHeight = convertHeight(tDataArray[tDataArray.size() - 1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        currWaveIdx = tDataArray.size() - 1;
-                    }
-                }
-
-                var dispHeight = convertHeight((mCurrentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
-                mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
-                mTideNumStr = dispHeight.format("%.2f");
-
-                if (mcTideExtrema != null && mcTideExtrema instanceof Array) {
-                    for (var i = 0; i < mcTideExtrema.size(); i++) {
-                        var ext = mcTideExtrema[i] as Array;
-                        if (ext[0] > now) {
-                            var extTs = ext[0] as Number;
-                            var rawExtH = ext[1] as Number;
-                            var typeCode = ext[2];
-                            var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
-                            var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
-                            var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
-                            var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
-                            var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
-                            mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
-                            break;
-                        }
-                    }
-                }
-
-                if (mcWaveData != null) {
-                    var waveDataArray = mcWaveData as Array;
-                    var currentWave = null;
-                    if (currWaveIdx >= 0 && currWaveIdx < waveDataArray.size()) {
-                        currentWave = waveDataArray[currWaveIdx] as Array;
-                    } else if (waveDataArray.size() > 0) {
-                        if (tTimesArray != null && tTimesArray.size() > 0 && now < (tTimesArray[0] as Number)) {
-                            currentWave = waveDataArray[0] as Array;
-                        } else {
-                            currentWave = waveDataArray[waveDataArray.size() - 1] as Array;
-                        }
-                    }
-
-                    if (currentWave != null) {
-                        for (var s = 0; s < 3; s++) {
-                            var h = (currentWave as Array)[s*3];
-                            if (h != null) {
-                                var hvRaw = h as Number;
-                                if (hvRaw > 0) {
-                                    var pVal = (currentWave as Array)[s*3+1];
-                                    var pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
-                                    var dVal = (currentWave as Array)[s*3+2];
-                                    var dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
-                                    mValidSwells.add([hvRaw, pValNum, dValFloat]);
-                                    
-                                    var dispH = convertHeight(hvRaw, mcSwellUnitApi, targetSwellUnit);
-                                    var unit = (targetSwellUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
-                                    var sStr = dispH.format("%.1f") + unit + "@" + pValNum;
-                                    mSwellTexts.add(sStr);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for (var i = 0; i < tDataArray.size(); i++) {
-                    var tTs = tTimesArray[i] as Number;
-                    if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
-                        var h = tDataArray[i];
-                        if (h != null) {
-                            var hFloat = convertHeight(h as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                            if (hFloat < mMinH) { mMinH = hFloat; }
-                            if (hFloat > mMaxH) { mMaxH = hFloat; }
-                        }
-                    }
-                }
-                
-                if (mcWaveData != null && mcWaveData instanceof Array) {
-                    var wDataArray = mcWaveData as Array;
-                    for (var i = 0; i < wDataArray.size(); i++) {
-                        if (i < tTimesArray.size()) {
-                            var tTs = tTimesArray[i] as Number;
-                            if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
-                                var wPoint = wDataArray[i] as Array;
-                                for (var s = 0; s < 3; s++) {
-                                    var hVal = wPoint[s*3];
-                                    if (hVal != null) {
-                                        var h = convertHeight(hVal as Number, mcSwellUnitApi, DataKeys.UNIT_METER);
-                                        if (h < mMinSwellH) { mMinSwellH = h; }
-                                        if (h > mMaxSwellH) { mMaxSwellH = h; }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if (mMinSwellH == 9999.0) { mMinSwellH = 0.0; mMaxSwellH = 1.0; }
-                if (mMaxSwellH == mMinSwellH) { mMaxSwellH = mMinSwellH + 1.0; }
             }
+
+            if (mcWaveData != null) {
+                var waveDataArray = mcWaveData as Array;
+                var currentWave = null;
+                if (currWaveIdx >= 0 && currWaveIdx < waveDataArray.size()) {
+                    currentWave = waveDataArray[currWaveIdx] as Array;
+                } else if (waveDataArray.size() > 0) {
+                    if (tTimesArray != null && tTimesArray.size() > 0 && now < (tTimesArray[0] as Number)) {
+                        currentWave = waveDataArray[0] as Array;
+                    } else {
+                        currentWave = waveDataArray[waveDataArray.size() - 1] as Array;
+                    }
+                }
+
+                if (currentWave != null) {
+                    for (var s = 0; s < 2; s++) {
+                        var h = (currentWave as Array)[s*3];
+                        if (h != null) {
+                            var hvRaw = h as Number;
+                            if (hvRaw > 0) {
+                                var pVal = (currentWave as Array)[s*3+1];
+                                var pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
+                                var dVal = (currentWave as Array)[s*3+2];
+                                var dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
+                                mValidSwells.add([hvRaw, pValNum, dValFloat]);
+                                
+                                var dispH = convertHeight(hvRaw, mcSwellUnitApi, targetSwellUnit);
+                                var unit = (targetSwellUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
+                                var sStr = dispH.format("%.1f") + unit + "@" + pValNum;
+                                mSwellTexts.add(sStr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (var i = 0; i < tDataArray.size(); i++) {
+                var tTs = tTimesArray[i] as Number;
+                if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
+                    var h = tDataArray[i];
+                    if (h != null) {
+                        var hFloat = convertHeight(h as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                        if (hFloat < mMinH) { mMinH = hFloat; }
+                        if (hFloat > mMaxH) { mMaxH = hFloat; }
+                    }
+                }
+            }
+            
+            if (mcWaveData != null && mcWaveData instanceof Array) {
+                var wDataArray = mcWaveData as Array;
+                for (var i = 0; i < wDataArray.size(); i++) {
+                    if (i < tTimesArray.size()) {
+                        var tTs = tTimesArray[i] as Number;
+                        if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
+                            var wPoint = wDataArray[i] as Array;
+                            for (var s = 0; s < 2; s++) {
+                                var hVal = wPoint[s*3];
+                                if (hVal != null) {
+                                    var h = convertHeight(hVal as Number, mcSwellUnitApi, DataKeys.UNIT_METER);
+                                    if (h < mMinSwellH) { mMinSwellH = h; }
+                                    if (h > mMaxSwellH) { mMaxSwellH = h; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (mMinSwellH == 9999.0) { mMinSwellH = 0.0; mMaxSwellH = 1.0; }
+            if (mMaxSwellH == mMinSwellH) { mMaxSwellH = mMinSwellH + 1.0; }
         }
+
 
         var tideColor = getColorFromIndex(tideColorIdx);
         var graphColor = getColorFromIndex(graphColorIdx);
@@ -283,14 +285,16 @@ class TideWatchView extends WatchUi.WatchFace {
         drawBattery(dc, width / 2, (height * 0.08).toNumber(), mBattery, baseColor);
 
         // 2. Error Check
-        var spotId = Application.Properties.getValue("SpotId");
-        if (spotId == null || spotId.equals("")) {
-             // If App Settings sync wiped out our dynamically set property, check Storage
-             // but DO NOT write back to Properties here, otherwise the user can never clear it!
-             spotId = Application.Storage.getValue("spotId") as String?;
+        var apiKey = Application.Properties.getValue("StormglassApiKey");
+        if (apiKey == null || (apiKey instanceof String && apiKey.equals(""))) {
+             drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, "stormglass.io API Key Missing", baseColor);
+             return;
         }
 
-        if (spotId == null || spotId.equals("")) {
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        if (gpsLat == null || gpsLat instanceof String && gpsLat.equals("") || gpsLon == null || gpsLon instanceof String && gpsLon.equals("")) {
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
              msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {
@@ -307,10 +311,8 @@ class TideWatchView extends WatchUi.WatchFace {
         if (mcTideData == null || mcTideTimes == null || mcTideStartTime == null || mcTideInterval == null) {
             var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
             if (mSyncError != null) {
-                if (mSyncError == DataKeys.ERROR_NO_SPOTS_NEARBY) {
-                    msg = WatchUi.loadResource(Rez.Strings.NoSpotsFound) as String;
-                } else if (mSyncError == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE) {
-                    msg = "no data sync";
+                if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
+                    msg = "API Limit Reached";
                 } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                     msg = "no connection";
                 } else {
@@ -334,7 +336,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         if (showDate) {
             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(startX - 10 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, mDateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX - 4 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, mDateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, mDowStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
@@ -383,7 +385,7 @@ class TideWatchView extends WatchUi.WatchFace {
             if (showSwellGraph && mcWaveData != null && mcWaveData instanceof Array) {
                 var colors = [baseColor, baseColor, baseColor];
                 var tTimesArray = mcTideTimes as Array?;
-                for (var s = 0; s < 3; s++) {
+                for (var s = 0; s < 2; s++) {
                     var lastSX = -1, lastSY = -1;
                     var waveDataArray = mcWaveData as Array;
                     for (var i = 0; i < waveDataArray.size(); i++) {
@@ -441,10 +443,20 @@ class TideWatchView extends WatchUi.WatchFace {
         var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
+        if (isStale && System.getDeviceSettings().phoneConnected && mSyncError != DataKeys.ERROR_QUOTA_EXCEEDED) {
+            if (Toybox has :Background) {
+                try {
+                    Background.registerForTemporalEvent(new Time.Duration(1));
+                } catch (e) {
+                    // TODO: Handle error.
+                }
+            }
+        }
+
         if (showSyncError) {
             var errMsg = "sync error";
-            if (mSyncError == DataKeys.ERROR_NETWORK_RESPONSE_TOO_LARGE) {
-                errMsg = "no data sync";
+            if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
+                errMsg = "API Limit Reached";
             } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                 errMsg = "no connection";
             }
