@@ -94,6 +94,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
         };
+        System.println("Requesting BigDataCloud Reverse-Geocode with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveBigDataCloud));
     }
 
@@ -260,7 +261,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { "Authorization" => mApiKey }
         };
-        System.println("Requesting Stormglass Tide Extremes");
+        System.println("Requesting Stormglass Tide Extremes with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
 
