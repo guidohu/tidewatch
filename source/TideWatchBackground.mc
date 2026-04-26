@@ -296,14 +296,12 @@ class TideWatchBackground extends System.ServiceDelegate {
             return;
         }
 
-        System.println("DEBUG: Extremes data: " + data);
         if (responseCode == 200 && data != null && data.hasKey("data")) {
             var pts = data.get("data") as Array;
             var extrema = new Array<Array>[0];
             
             for (var i = 0; i < pts.size(); i++) {
                 var point = pts[i] as Dictionary;
-                System.println("DEBUG: point " + point);
                 var typeStr = point.get("t");
                 if (typeStr != null && (typeStr.equals("high") || typeStr.equals("low"))) {
                     var typeCode = typeStr.equals("high") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
@@ -316,7 +314,6 @@ class TideWatchBackground extends System.ServiceDelegate {
                 }
             }
 
-            System.println("Write to Storage tideExtrema: " + extrema);
             Application.Storage.setValue("tideExtrema", extrema);
             
             // Clean exit, successful sync pipeline
