@@ -298,7 +298,7 @@ class TideWatchBackground extends System.ServiceDelegate {
 
         if (responseCode == 200 && data != null && data.hasKey("data")) {
             var pts = data.get("data") as Array;
-            var extrema = new Array<Array>[0];
+            var extrema = [];
             
             for (var i = 0; i < pts.size(); i++) {
                 var point = pts[i] as Dictionary;

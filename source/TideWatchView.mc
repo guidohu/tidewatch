@@ -156,7 +156,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
             if (mcTideExtrema != null && mcTideExtrema instanceof Array) {
                 for (var i = 0; i < mcTideExtrema.size(); i++) {
-                    var ext = mcTideExtrema[i] as Array;
+                    var ext = mcTideExtrema[i] as Array?;
                     if (ext == null) {
                         System.println("invalid data for tide extrema");
                         break;
