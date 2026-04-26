@@ -42,8 +42,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
     var mcTideData as Array? = null;
     var mcTideTimes as Array? = null;
-    var mcTideStartTime as Number? = null;
-    var mcTideInterval as Number? = null;
+
     var mcTideExtrema as Array? = null;
     var mcWaveData as Array? = null;
     var mcTideUnitApi as Number? = null;
@@ -56,11 +55,7 @@ class TideWatchView extends WatchUi.WatchFace {
         WatchFace.initialize();
     }
 
-    function onLayout(dc as Dc) as Void {
-    }
 
-    function onShow() as Void {
-    }
 
     function onUpdate(dc as Dc) as Void {
         var now = Time.now().value();
@@ -95,8 +90,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
             mcTideData = Application.Storage.getValue("tideData") as Array?;
             mcTideTimes = Application.Storage.getValue("tideTimes") as Array?;
-            mcTideStartTime = Application.Storage.getValue("tideStartTime") as Number?;
-            mcTideInterval = Application.Storage.getValue("tideInterval") as Number?;
+
             mcTideExtrema = Application.Storage.getValue("tideExtrema") as Array?;
             mcWaveData = Application.Storage.getValue("waveData") as Array?;
             mcTideUnitApi = Application.Storage.getValue("tideUnitApi") as Number?;
@@ -163,6 +157,10 @@ class TideWatchView extends WatchUi.WatchFace {
             if (mcTideExtrema != null && mcTideExtrema instanceof Array) {
                 for (var i = 0; i < mcTideExtrema.size(); i++) {
                     var ext = mcTideExtrema[i] as Array;
+                    if (ext == null) {
+                        System.println("invalid data for tide extrema");
+                        break;
+                    }
                     if (ext[0] > now) {
                         var extTs = ext[0] as Number;
                         var rawExtH = ext[1] as Number;
@@ -308,7 +306,7 @@ class TideWatchView extends WatchUi.WatchFace {
              return;
         }
 
-        if (mcTideData == null || mcTideTimes == null || mcTideStartTime == null || mcTideInterval == null) {
+        if (mcTideData == null || mcTideTimes == null) {
             var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
             if (mSyncError != null) {
                 if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
@@ -547,14 +545,7 @@ class TideWatchView extends WatchUi.WatchFace {
         }
     }
 
-    function onHide() as Void {
-    }
 
-    function onExitSleep() as Void {
-    }
-
-    function onEnterSleep() as Void {
-    }
 
     function getColorFromIndex(idx as Number) as Number {
         if (idx == DataKeys.SETTING_COLOR_PINK) { return Graphics.COLOR_PINK; }

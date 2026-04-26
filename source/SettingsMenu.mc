@@ -9,12 +9,16 @@ import Toybox.Application.Storage;
 import Toybox.Application.Properties;
 
 class TideWatchSettingsMenu extends WatchUi.Menu2 {
+    /**
+     * Initializes the settings menu with all available options.
+     * Loads labels and current values from properties and storage.
+     */
     function initialize() {
         Menu2.initialize({:title=>"Settings"});
         
         var spotName = Application.Storage.getValue("spotName");
-        var gpsLat = Application.Properties.getValue("GpsLat");
-        var gpsLon = Application.Properties.getValue("GpsLon");
+        var gpsLat = Application.Properties.getValue("GpsLat") as String;
+        var gpsLon = Application.Properties.getValue("GpsLon") as String;
 
         var subLabel = "";
         if (spotName != null && spotName instanceof String && !spotName.equals("")) {
@@ -61,10 +65,19 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.StormglassApiKeyTitle), apiKeyStr, "StormglassApiKey", {}));
     }
 
+    /**
+     * Helper to load a string resource.
+     * @param id The ResourceId of the string to load.
+     * @return The loaded string.
+     */
     static function loadStr(id as ResourceId) as String {
         return WatchUi.loadResource(id) as String;
     }
 
+    /**
+     * Returns an array of ResourceIds for the color setting names.
+     * Used to populate the color selection menu.
+     */
     static function getSettingsColorResources() as Array<ResourceId> {
         return [
             Rez.Strings.ColorBlue,
@@ -83,6 +96,10 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         ];
     }
 
+    /**
+     * Triggers an immediate background sync by registering a temporal event.
+     * @param fullInvalidate If true, clears cached tide and wave data before syncing.
+     */
     static function triggerImmediateSync(fullInvalidate as Boolean) as Void {
         if (fullInvalidate) {
             Storage.setValue("tideData", null);
@@ -106,6 +123,11 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         }
     }
 
+    /**
+     * Gets the display name for a color at a given index.
+     * @param index The color index.
+     * @return The localized name of the color.
+     */
     function getColorName(index as Number) as String {
         var colorStrings = getSettingsColorResources();
         if (index >= 0 && index < colorStrings.size()) {
@@ -114,6 +136,11 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         return "Unknown";
     }
 
+    /**
+     * Gets the display name for a unit setting (Metric vs Imperial).
+     * @param index The unit setting index.
+     * @return The localized unit name.
+     */
     function getUnitName(index as Number) as String {
         if (index == DataKeys.SETTING_UNIT_METERS) {
             return loadStr(Rez.Strings.UnitsMeters);
@@ -123,6 +150,11 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         return "Unknown";
     }
 
+    /**
+     * Gets the display name for a time format setting (24h vs 12h).
+     * @param index The time format index.
+     * @return The localized format name.
+     */
     function getTimeFormatName(index as Number) as String {
         if (index == DataKeys.TIME_FORMAT_24_H) { return loadStr(Rez.Strings.Format24Hour); }
         if (index == DataKeys.TIME_FORMAT_12_H) { return loadStr(Rez.Strings.Format12Hour); }
@@ -130,6 +162,9 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
     }
 }
 
+/**
+ * A generic delegate for sub-menus that simply set a property value.
+ */
 class PropertyMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _propertyId as String;
     private var _parentItem as WatchUi.MenuItem;
@@ -142,6 +177,10 @@ class PropertyMenuDelegate extends WatchUi.Menu2InputDelegate {
         _needsSync = needsSync;
     }
     
+    /**
+     * Handles item selection in a property sub-menu.
+     * Sets the property, updates the parent menu label, and optionally triggers sync.
+     */
     function onSelect(item as WatchUi.MenuItem) as Void {
         var value = item.getId();
         if (value instanceof Number) {
@@ -160,11 +199,18 @@ class PropertyMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
+/**
+ * Main input delegate for the settings menu.
+ * Handles navigation to sub-menus or toggling simple boolean settings.
+ */
 class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
     function initialize() {
         Menu2InputDelegate.initialize();
     }
     
+    /**
+     * Handles selection of a menu item in the main settings menu.
+     */
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as String;
         if (id.equals("UpdateLocation")) {
@@ -186,6 +232,9 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
+/**
+ * Sub-menu for choosing location update method.
+ */
 class LocationOptionMenu extends WatchUi.Menu2 {
     function initialize(parentItem as WatchUi.MenuItem) {
         Menu2.initialize({:title=>TideWatchSettingsMenu.loadStr(Rez.Strings.UpdateLocationTitle)});
@@ -208,12 +257,20 @@ class LocationOptionMenu extends WatchUi.Menu2 {
     }
 }
 
+/**
+ * Delegate for the location option menu.
+ */
 class LocationOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _parentItem as WatchUi.MenuItem;
     function initialize(parentItem as WatchUi.MenuItem) {
         Menu2InputDelegate.initialize();
         _parentItem = parentItem;
     }
+    
+    /**
+     * Handles location selection. 
+     * If 'Watch' is chosen, it attempts to get current GPS coordinates.
+     */
     function onSelect(item as WatchUi.MenuItem) as Void {
         if (item.getId().equals("Manual")) {
             item.setSubLabel(WatchUi.loadResource(Rez.Strings.SetInConnectIQ) as String);

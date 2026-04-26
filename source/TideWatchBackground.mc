@@ -18,9 +18,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     var mTideEnd as Number? = null;
     var mDatumStr as String = "MLLW";
 
-    // Variables perfectly matched to Stormglass's separated queries
-    var mParsedTideData as Array<Number>? = null;
-    var mParsedTideTimes as Array<Number>? = null;
+
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -153,11 +151,10 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (responseCode == 200 && data != null && data.hasKey("data")) {
             var pts = data.get("data") as Array;
             var waveResults = new Array<Array<Number?>>[pts.size()];
-            var waveTimes = new Array<Number>[pts.size()];
             
             for (var i = 0; i < pts.size(); i++) {
                 var pt = pts[i] as Dictionary;
-                waveTimes[i] = pt.get("ts") as Number;
+
                 
                 var wPoint = new Array<Number?>[9];
                 
@@ -197,7 +194,6 @@ class TideWatchBackground extends System.ServiceDelegate {
             Application.Storage.setValue("waveData", waveResults);
             Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
             waveResults = null;
-            waveTimes = null;
             data = null;
             makeStormglassTideRequest();
             return;
@@ -252,10 +248,8 @@ class TideWatchBackground extends System.ServiceDelegate {
             }
 
             if (gridTimes.size() > 0) {
-                Application.Storage.setValue("tideStartTime", gridTimes[0]);
                 Application.Storage.setValue("tideTimes", gridTimes);
                 Application.Storage.setValue("tideData", gridHeights);
-                Application.Storage.setValue("tideInterval", 3600); // 1 hour interval matches Stormglass exactly
                 Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
             }
             
@@ -293,16 +287,23 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
         System.println("Extremes response: " + responseCode);
-        if (responseCode != 200) { System.println("Extremes data: " + data); }
+        if (responseCode != 200) { 
+            System.println("Extremes data: " + data);
+        }
         logMemoryUsage();
-        if (handleQuotaError(responseCode)) { return; }
+        if (handleQuotaError(responseCode)) {
+            System.println("Quota error");
+            return;
+        }
 
+        System.println("DEBUG: Extremes data: " + data);
         if (responseCode == 200 && data != null && data.hasKey("data")) {
             var pts = data.get("data") as Array;
-            var extrema = [];
+            var extrema = new Array<Array>[0];
             
             for (var i = 0; i < pts.size(); i++) {
                 var point = pts[i] as Dictionary;
+                System.println("DEBUG: point " + point);
                 var typeStr = point.get("t");
                 if (typeStr != null && (typeStr.equals("high") || typeStr.equals("low"))) {
                     var typeCode = typeStr.equals("high") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
@@ -315,6 +316,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 }
             }
 
+            System.println("Write to Storage tideExtrema: " + extrema);
             Application.Storage.setValue("tideExtrema", extrema);
             
             // Clean exit, successful sync pipeline
