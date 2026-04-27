@@ -29,5 +29,10 @@ module DataKeys {
 
         TIME_FORMAT_24_H = 0,
         TIME_FORMAT_12_H = 1,
+
+        DATUM_STATION_DEFAULT = 0,
+        DATUM_MSL = 1,
+        DATUM_MLLW = 2,
+        DATUM_LAT = 3,
     }
 }

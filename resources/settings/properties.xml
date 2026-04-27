@@ -2,12 +2,13 @@
     <properties>
         <property id="GpsLat" type="string"></property>
         <property id="GpsLon" type="string"></property>
-        <property id="TideDatum" type="number">0</property> <!-- 0: MLLW, 1: MSL -->
+        <property id="TideDatum" type="number">0</property> <!-- 0: Station Default, 1: MSL, 2: MLLW, 3: LAT -->
         <property id="TideUnits" type="number">0</property> <!-- 0: Meters, 1: Feet -->
         <property id="SwellUnits" type="number">1</property> <!-- 0: Meters, 1: Feet -->
         <property id="TideColor" type="number">0</property> <!-- 0: Blue -->
         <property id="GraphColor" type="number">0</property> <!-- 0: Blue -->
         <property id="ShowSwellGraph" type="boolean">false</property>
+        <property id="ShowSwellSummary" type="boolean">true</property>
         <property id="BaseColor" type="number">4</property> <!-- 4: White -->
         <property id="ShowDate" type="boolean">true</property>
         <property id="TimeFormat" type="number">0</property>

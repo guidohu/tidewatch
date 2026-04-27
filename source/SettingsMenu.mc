@@ -30,7 +30,11 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.UpdateLocationTitle), subLabel, "UpdateLocation", {}));
 
         var tideDatum = Application.Properties.getValue("TideDatum") as Number;
-        var datumStr = (tideDatum == 1) ? loadStr(Rez.Strings.DatumMSL) : loadStr(Rez.Strings.DatumMLLW);
+        var datumStr = "";
+        if (tideDatum == DataKeys.DATUM_MSL) { datumStr = loadStr(Rez.Strings.DatumMSL); }
+        else if (tideDatum == DataKeys.DATUM_MLLW) { datumStr = loadStr(Rez.Strings.DatumMLLW); }
+        else if (tideDatum == DataKeys.DATUM_LAT) { datumStr = loadStr(Rez.Strings.DatumLAT); }
+        else { datumStr = loadStr(Rez.Strings.DatumStationDefault); }
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.TideDatumTitle), datumStr, "TideDatum", {}));
 
         var tideUnit = Application.Properties.getValue("TideUnits") as Number;
@@ -41,6 +45,9 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
 
         var showSwell = Application.Properties.getValue("ShowSwellGraph") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(loadStr(Rez.Strings.ShowSwellGraphTitle), null, "ShowSwellGraph", showSwell, {}));
+
+        var showSummary = Application.Properties.getValue("ShowSwellSummary") as Boolean;
+        addItem(new WatchUi.ToggleMenuItem(loadStr(Rez.Strings.ShowSwellSummaryTitle), null, "ShowSwellSummary", showSummary, {}));
 
         var showDate = Application.Properties.getValue("ShowDate") as Boolean;
         addItem(new WatchUi.ToggleMenuItem(loadStr(Rez.Strings.ShowDateTitle), null, "ShowDate", showDate, {}));
@@ -221,6 +228,9 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.pushView(new ColorMenu(id, item), new PropertyMenuDelegate(id, item, false), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TideUnits") || id.equals("SwellUnits")) {
             WatchUi.pushView(new UnitMenu(id, item), new PropertyMenuDelegate(id, item, true), WatchUi.SLIDE_LEFT);
+        } else if (id.equals("ShowSwellSummary")) {
+            Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
+            TideWatchSettingsMenu.triggerImmediateSync(false);
         } else if (id.equals("TimeFormat")) {
             WatchUi.pushView(new TimeFormatMenu(id, item), new PropertyMenuDelegate(id, item, false), WatchUi.SLIDE_LEFT);
         } else if (id.equals("StormglassApiKey")) {
@@ -299,8 +309,10 @@ class LocationOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
 class DatumMenu extends WatchUi.Menu2 {
     function initialize(propertyId as String, parentItem as WatchUi.MenuItem) {
         Menu2.initialize({:title=>TideWatchSettingsMenu.loadStr(Rez.Strings.TideDatumTitle)});
-        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumMLLW), null, 0, {}));
-        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumMSL), null, 1, {}));
+        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumStationDefault), null, DataKeys.DATUM_STATION_DEFAULT, {}));
+        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumMSL), null, DataKeys.DATUM_MSL, {}));
+        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumMLLW), null, DataKeys.DATUM_MLLW, {}));
+        addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.DatumLAT), null, DataKeys.DATUM_LAT, {}));
     }
 }
 

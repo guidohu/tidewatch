@@ -16,7 +16,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     var mStart as Number? = null;
     var mEnd as Number? = null;
     var mTideEnd as Number? = null;
-    var mDatumStr as String = "MLLW";
+    var mDatumStr as String? = null;
 
 
 
@@ -32,11 +32,6 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function onTemporalEvent() as Void {
         mApiKey = Application.Properties.getValue("StormglassApiKey");
-        if (mApiKey == null || mApiKey.equals("")) {
-            System.println("No Stormglass API Key. Exit.");
-            Background.exit(false);
-            return;
-        }
 
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
@@ -50,11 +45,15 @@ class TideWatchBackground extends System.ServiceDelegate {
             return;
         }
 
-        var datumProp = Application.Properties.getValue("TideDatum");
-        if (datumProp == 1) {
+        var datumProp = Application.Properties.getValue("TideDatum") as Number;
+        if (datumProp == DataKeys.DATUM_MSL) {
             mDatumStr = "MSL";
-        } else {
+        } else if (datumProp == DataKeys.DATUM_MLLW) {
             mDatumStr = "MLLW";
+        } else if (datumProp == DataKeys.DATUM_LAT) {
+            mDatumStr = "LAT";
+        } else {
+            mDatumStr = null;
         }
 
         // Aligning exactly to the "Align Graphs" logic from 6 hours ago to 16 hours forward
@@ -117,7 +116,11 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Resolved spotName: " + spotName);
         // Always proceed to the next request
         data = null;
-        makeStormglassWeatherRequest();
+        if (mApiKey != null && !mApiKey.equals("")) {
+            makeStormglassWeatherRequest();
+        } else {
+            makeTideTimelineRequest();
+        }
     }
 
     function makeStormglassWeatherRequest() as Void {
@@ -195,7 +198,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
             waveResults = null;
             data = null;
-            makeStormglassTideRequest();
+            makeTideTimelineRequest();
             return;
         }
         
@@ -203,24 +206,25 @@ class TideWatchBackground extends System.ServiceDelegate {
         Background.exit(false);
     }
 
-    function makeStormglassTideRequest() as Void {
-        var url = "https://forecast.wakeandsurf.ch/v2/tide/sea-level/point";
+    function makeTideTimelineRequest() as Void {
+        var url = "https://forecast.wakeandsurf.ch/tides/timeline";
         var params = {
-            "lat" => mTargetLat,
-            "lng" => mTargetLon,
+            "latitude" => mTargetLat,
+            "longitude" => mTargetLon,
             "start" => mStart,
-            "end" => mTideEnd,
-            "datum" => mDatumStr
+            "end" => mTideEnd
         };
+        if (mDatumStr != null) {
+            params.put("datum", mDatumStr);
+        }
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
-                "Authorization" => mApiKey,
                 "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA"
             }
         };
-        System.println("Requesting Stormglass Tide Sea-Level: " + url + " parameters: " + params);
+        System.println("Requesting Tide Timeline: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveTide));
     }
 
@@ -256,7 +260,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             gridTimes = null;
             gridHeights = null;
             data = null;
-            makeStormglassExtremesRequest();
+            makeTideExtremesRequest();
             return;
         }
         
@@ -264,24 +268,25 @@ class TideWatchBackground extends System.ServiceDelegate {
         Background.exit(false);
     }
 
-    function makeStormglassExtremesRequest() as Void {
-        var url = "https://forecast.wakeandsurf.ch/v2/tide/extremes/point";
+    function makeTideExtremesRequest() as Void {
+        var url = "https://forecast.wakeandsurf.ch/tides/extremes";
         var params = {
-            "lat" => mTargetLat,
-            "lng" => mTargetLon,
+            "latitude" => mTargetLat,
+            "longitude" => mTargetLon,
             "start" => mStart,
-            "end" => mTideEnd,
-            "datum" => mDatumStr
+            "end" => mTideEnd
         };
+        if (mDatumStr != null) {
+            params.put("datum", mDatumStr);
+        }
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
-                "Authorization" => mApiKey,
                 "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA"
             }
         };
-        System.println("Requesting Stormglass Tide Extremes with: " + url + " parameters: " + params);
+        System.println("Requesting Tide Extremes with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
 

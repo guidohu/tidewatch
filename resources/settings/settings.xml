@@ -8,8 +8,10 @@
         </setting>
         <setting propertyKey="@Properties.TideDatum" title="@Strings.TideDatumTitle">
             <settingConfig type="list">
-                <listEntry value="0">@Strings.DatumMLLW</listEntry>
+                <listEntry value="0">@Strings.DatumStationDefault</listEntry>
                 <listEntry value="1">@Strings.DatumMSL</listEntry>
+                <listEntry value="2">@Strings.DatumMLLW</listEntry>
+                <listEntry value="3">@Strings.DatumLAT</listEntry>
             </settingConfig>
         </setting>
         <setting propertyKey="@Properties.TideUnits" title="@Strings.TideUnitsTitle">
@@ -85,6 +87,9 @@
             </settingConfig>
         </setting>
         <setting propertyKey="@Properties.ShowSwellGraph" title="@Strings.ShowSwellGraphTitle">
+            <settingConfig type="boolean" />
+        </setting>
+        <setting propertyKey="@Properties.ShowSwellSummary" title="@Strings.ShowSwellSummaryTitle">
             <settingConfig type="boolean" />
         </setting>
         <setting propertyKey="@Properties.StormglassApiKey" title="@Strings.StormglassApiKeyTitle" prompt="@Strings.StormglassApiKeyPrompt">

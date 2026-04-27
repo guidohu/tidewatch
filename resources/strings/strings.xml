@@ -9,8 +9,10 @@
     <string id="UnitsMeters">Meters</string>
     <string id="UnitsFeet">Feet</string>
     <string id="TideDatumTitle">Tidal Datum</string>
+    <string id="DatumStationDefault">Station Default</string>
     <string id="DatumMLLW">MLLW</string>
     <string id="DatumMSL">MSL</string>
+    <string id="DatumLAT">LAT</string>
     <string id="TideColorTitle">Tide Height Color</string>
     <string id="GraphColorTitle">Tide Graph Color</string>
     <string id="ColorWhite">White</string>
@@ -27,6 +29,7 @@
     <string id="ColorPetrol">Petrol</string>
     <string id="ColorTurquoise">Turquoise</string>
     <string id="ShowSwellGraphTitle">Show Swell in Graph</string>
+    <string id="ShowSwellSummaryTitle">Show Swell Summary</string>
     <string id="BaseColorTitle">Base Text Color</string>
     <string id="ShowDateTitle">Show Date and Day</string>
     <string id="TimeFormatTitle">Time Format</string>

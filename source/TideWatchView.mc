@@ -67,6 +67,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var graphColorIdx = Application.Properties.getValue("GraphColor");
         var baseColorIdx = Application.Properties.getValue("BaseColor");
         var showSwellGraph = Application.Properties.getValue("ShowSwellGraph");
+        var showSwellSummary = Application.Properties.getValue("ShowSwellSummary");
         var showDate = Application.Properties.getValue("ShowDate");
         var timeFormatVal = Application.Properties.getValue("TimeFormat");
         var use24Hour = (timeFormatVal == null || timeFormatVal == DataKeys.TIME_FORMAT_24_H);
@@ -77,8 +78,9 @@ class TideWatchView extends WatchUi.WatchFace {
             ((graphColorIdx == null ? 0 : graphColorIdx as Number) << 8) +
             ((baseColorIdx == null ? 0 : baseColorIdx as Number) << 12) +
             ((showSwellGraph ? 1 : 0) << 16) +
-            ((showDate ? 1 : 0) << 17) +
-            ((use24Hour ? 1 : 0) << 18);
+            ((showSwellSummary ? 1 : 0) << 17) +
+            ((showDate ? 1 : 0) << 18) +
+            ((use24Hour ? 1 : 0) << 19);
 
         var dataUpdatedAt = Application.Storage.getValue("dataUpdatedAt") as Number?;
         if (dataUpdatedAt == null) { dataUpdatedAt = 0; }
@@ -284,10 +286,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // 2. Error Check
         var apiKey = Application.Properties.getValue("StormglassApiKey");
-        if (apiKey == null || (apiKey instanceof String && apiKey.equals(""))) {
-             drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, "stormglass.io API Key Missing", baseColor);
-             return;
-        }
+        var hasApiKey = (apiKey != null && apiKey instanceof String && !apiKey.equals(""));
 
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
@@ -343,33 +342,37 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // Swell Section
-        if (mValidSwells.size() > 0) {
-            var totalSwellW = 0;
-            var arrowW = (10 * scale).toNumber();
-            var pad = (3 * scale).toNumber();
-            var sepW = dc.getTextWidthInPixels(" | ", Graphics.FONT_XTINY);
-            for (var i = 0; i < mValidSwells.size(); i++) {
-                totalSwellW += arrowW + pad + dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
-            }
-            totalSwellW += (mValidSwells.size() - 1) * sepW;
-
-            var curX = (width - totalSwellW) / 2;
-            var curY = (height * 0.57).toNumber();
-            for (var i = 0; i < mValidSwells.size(); i++) {
-                var sv = mValidSwells[i] as Array;
-                drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
-                curX += arrowW + pad;
-                dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(curX, curY, Graphics.FONT_XTINY, mSwellTexts[i] as String, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                curX += dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
-                if (i < mValidSwells.size() - 1) {
-                    dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(curX, curY, Graphics.FONT_XTINY, " | ", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                    curX += sepW;
+        if (showSwellSummary) {
+            if (!hasApiKey) {
+                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
+            } else if (mValidSwells.size() > 0) {
+                var totalSwellW = 0;
+                var arrowW = (10 * scale).toNumber();
+                var pad = (3 * scale).toNumber();
+                var sepW = dc.getTextWidthInPixels(" | ", Graphics.FONT_XTINY);
+                for (var i = 0; i < mValidSwells.size(); i++) {
+                    totalSwellW += arrowW + pad + dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
                 }
+                totalSwellW += (mValidSwells.size() - 1) * sepW;
+
+                var curX = (width - totalSwellW) / 2;
+                var curY = (height * 0.57).toNumber();
+                for (var i = 0; i < mValidSwells.size(); i++) {
+                    var sv = mValidSwells[i] as Array;
+                    drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
+                    curX += arrowW + pad;
+                    dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(curX, curY, Graphics.FONT_XTINY, mSwellTexts[i] as String, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                    curX += dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
+                    if (i < mValidSwells.size() - 1) {
+                        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                        dc.drawText(curX, curY, Graphics.FONT_XTINY, " | ", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                        curX += sepW;
+                    }
+                }
+            } else {
+                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "No Swells", baseColor);
             }
-        } else {
-            drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "No Swells", baseColor);
         }
 
         // Graph Section
