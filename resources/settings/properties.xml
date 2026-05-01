@@ -8,7 +8,7 @@
         <property id="TideColor" type="number">0</property> <!-- 0: Blue -->
         <property id="GraphColor" type="number">0</property> <!-- 0: Blue -->
         <property id="ShowSwellGraph" type="boolean">false</property>
-        <property id="ShowSwellSummary" type="boolean">true</property>
+        <property id="ShowSwellSummary" type="boolean">false</property>
         <property id="BaseColor" type="number">4</property> <!-- 4: White -->
         <property id="ShowDate" type="boolean">true</property>
         <property id="TimeFormat" type="number">0</property>
