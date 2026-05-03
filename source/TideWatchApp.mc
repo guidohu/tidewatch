@@ -3,6 +3,7 @@ import Toybox.Background;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Time;
+import Toybox.Time.Gregorian;
 import Toybox.WatchUi;
 
 (:background)
@@ -23,13 +24,14 @@ class TideWatchApp extends Application.AppBase {
     function onStop(state as Dictionary?) as Void {
     }
 
+    function onSettingsChanged() {
+        TideWatchSettingsMenu.triggerImmediateSync(true);
+        WatchUi.requestUpdate();
+    }
+
     function getInitialView() {
         if (System has :ServiceDelegate) {
-            try {
-                Background.registerForTemporalEvent(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
-            } catch (e) {
-                System.println("Background error: " + e.getErrorMessage());
-            }
+            scheduleNextBackgroundEvent(null);
         }
         return [ new TideWatchView() ] as [Views];
     }
@@ -47,11 +49,8 @@ class TideWatchApp extends Application.AppBase {
         
         // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
-            try {
-                Background.registerForTemporalEvent(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
-            } catch (e) {
-                System.println("Background registration error: " + e.getErrorMessage());
-            }
+            var earliest = Time.now().add(new Time.Duration(Constants.DATA_FRESHNESS_THRESHOLD_SEC));
+            scheduleNextBackgroundEvent(earliest);
         }
     }
 
@@ -66,4 +65,42 @@ class TideWatchApp extends Application.AppBase {
 
 function getApp() as TideWatchApp {
     return Application.getApp() as TideWatchApp;
+}
+
+function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
+    if (Toybox has :Background) {
+        try { 
+            var lastTime = Background.getLastTemporalEventTime();
+            var nextTime = Time.now();
+
+            if (earliestTime != null && earliestTime.value() > nextTime.value()) {
+                nextTime = earliestTime;
+            }
+
+            // Garmin only allows events that are at least 5 minutes after the last event for
+            // watch faces.
+            if (lastTime != null) {
+                var lastPlus5 = lastTime.add(new Time.Duration(5 * 60));
+                if (lastPlus5.value() > nextTime.value()) {
+                    nextTime = lastPlus5;
+                }
+            }
+            
+            var info = Gregorian.info(nextTime, Time.FORMAT_SHORT);
+            System.println(Lang.format("Scheduling background event for: $1$-$2$-$3$ $4$:$5$:$6$", [
+                info.year,
+                info.month.format("%02d"),
+                info.day.format("%02d"),
+                info.hour.format("%02d"),
+                info.min.format("%02d"),
+                info.sec.format("%02d")
+            ]));
+
+            Background.registerForTemporalEvent(nextTime);
+        } catch (e) {
+            System.println("Background registration failed: " + e.getErrorMessage()); 
+        }
+    } else {
+        System.println("Background not available"); 
+    }
 }

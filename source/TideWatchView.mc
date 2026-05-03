@@ -445,13 +445,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
         if (isStale && System.getDeviceSettings().phoneConnected && mSyncError != DataKeys.ERROR_QUOTA_EXCEEDED) {
-            if (Toybox has :Background) {
-                try {
-                    Background.registerForTemporalEvent(new Time.Duration(5 * 60));
-                } catch (e) {
-                    System.println("Background registration failed: " + e.getErrorMessage()); 
-                }
-            }
+            scheduleNextBackgroundEvent(null);
         }
 
         if (showSyncError) {

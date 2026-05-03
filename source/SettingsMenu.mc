@@ -119,19 +119,14 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
             Storage.setValue("waveData", null);
             Storage.deleteValue("syncError");
             Storage.deleteValue("errorAt");
+            Storage.deleteValue("geocodeUpdatedAt");
+            Storage.deleteValue("weatherUpdatedAt");
+            Storage.deleteValue("tideTimelineUpdatedAt");
+            Storage.deleteValue("tideExtremesUpdatedAt");
         }
-        
         Storage.setValue("dataUpdatedAt", 0);
         
-        if (Toybox has :Background) {
-            try { 
-                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
-            } catch (e) {
-                System.println("Background registration failed: " + e.getErrorMessage()); 
-            }
-        } else {
-            System.println("Background not available"); 
-        }
+        scheduleNextBackgroundEvent(null);
     }
 
     /**

@@ -17,8 +17,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     var mEnd as Number? = null;
     var mTideEnd as Number? = null;
     var mDatumStr as String? = null;
-
-
+    var mDataUpdatedThisRun as Boolean = false;
 
     function initialize() {
         ServiceDelegate.initialize();
@@ -80,7 +79,37 @@ class TideWatchBackground extends System.ServiceDelegate {
         return false;
     }
 
+    function isFresh(key as String) as Boolean {
+        var updatedAt = Application.Storage.getValue(key);
+        if (updatedAt == null || !(updatedAt instanceof Number)) {
+            return false;
+        }
+        var now = Time.now().value();
+        if (now - (updatedAt as Number) < Constants.DATA_FRESHNESS_THRESHOLD_SEC) {
+            return true;
+        }
+        return false;
+    }
+
+    function finalizeSync() as Void {
+        if (mDataUpdatedThisRun) {
+            Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+        }
+        clearSyncError();
+        Background.exit(true);
+    }
+
     function makeBigDataCloudRequest() as Void {
+        if (isFresh("geocodeUpdatedAt")) {
+            System.println("Geocoding data is fresh, skipping.");
+            if (mApiKey != null && !mApiKey.equals("")) {
+                makeStormglassWeatherRequest();
+            } else {
+                makeTideTimelineRequest();
+            }
+            return;
+        }
+
         var url = "https://forecast.wakeandsurf.ch/data/reverse-geocode-client";
         var params = {
             "latitude" => mTargetLat,
@@ -113,6 +142,8 @@ class TideWatchBackground extends System.ServiceDelegate {
             }
         }
         Application.Storage.setValue("spotName", spotName);
+        Application.Storage.setValue("geocodeUpdatedAt", Time.now().value());
+        mDataUpdatedThisRun = true;
         System.println("Resolved spotName: " + spotName);
         // Always proceed to the next request
         data = null;
@@ -124,6 +155,12 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeStormglassWeatherRequest() as Void {
+        if (isFresh("weatherUpdatedAt")) {
+            System.println("Weather data is fresh, skipping.");
+            makeTideTimelineRequest();
+            return;
+        }
+
         var url = "https://forecast.wakeandsurf.ch/v2/weather/point";
         var params = {
             "lat" => mTargetLat,
@@ -196,6 +233,8 @@ class TideWatchBackground extends System.ServiceDelegate {
             
             Application.Storage.setValue("waveData", waveResults);
             Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
+            Application.Storage.setValue("weatherUpdatedAt", Time.now().value());
+            mDataUpdatedThisRun = true;
             waveResults = null;
             data = null;
             makeTideTimelineRequest();
@@ -207,6 +246,12 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeTideTimelineRequest() as Void {
+        if (isFresh("tideTimelineUpdatedAt")) {
+            System.println("Tide timeline data is fresh, skipping.");
+            makeTideExtremesRequest();
+            return;
+        }
+
         var url = "https://forecast.wakeandsurf.ch/tides/timeline";
         var params = {
             "latitude" => mTargetLat,
@@ -255,6 +300,8 @@ class TideWatchBackground extends System.ServiceDelegate {
                 Application.Storage.setValue("tideTimes", gridTimes);
                 Application.Storage.setValue("tideData", gridHeights);
                 Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
+                Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
+                mDataUpdatedThisRun = true;
             }
             
             gridTimes = null;
@@ -269,6 +316,12 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeTideExtremesRequest() as Void {
+        if (isFresh("tideExtremesUpdatedAt")) {
+            System.println("Tide extremes data is fresh, skipping.");
+            finalizeSync();
+            return;
+        }
+
         var url = "https://forecast.wakeandsurf.ch/tides/extremes";
         var params = {
             "latitude" => mTargetLat,
@@ -320,11 +373,11 @@ class TideWatchBackground extends System.ServiceDelegate {
             }
 
             Application.Storage.setValue("tideExtrema", extrema);
+            Application.Storage.setValue("tideExtremesUpdatedAt", Time.now().value());
+            mDataUpdatedThisRun = true;
             
             // Clean exit, successful sync pipeline
-            clearSyncError();
-            Application.Storage.setValue("dataUpdatedAt", Time.now().value());
-            Background.exit(true);
+            finalizeSync();
             return;
         }
         
