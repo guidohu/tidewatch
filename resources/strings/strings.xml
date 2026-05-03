@@ -44,4 +44,6 @@
     <string id="StormglassApiKeyTitle">Stormglass API Key</string>
     <string id="StormglassApiKeyPrompt">Enter Stormglass API Key</string>
     <string id="SetInConnectIQ">Set in Connect IQ</string>
+    <string id="SyncTitle">Force Sync</string>
+    <string id="SyncExecuting">Scheduled in 5 min</string>
 </resources>

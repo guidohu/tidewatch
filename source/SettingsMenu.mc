@@ -70,6 +70,8 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
             apiKeyStr = "Set";
         }
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.StormglassApiKeyTitle), apiKeyStr, "StormglassApiKey", {}));
+        
+        addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.SyncTitle), "", "ForceSync", {}));
     }
 
     /**
@@ -123,10 +125,12 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         
         if (Toybox has :Background) {
             try { 
-                Background.registerForTemporalEvent(new Time.Duration(1));
+                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
             } catch (e) {
-                // Ignore.
+                System.println("Background registration failed: " + e.getErrorMessage()); 
             }
+        } else {
+            System.println("Background not available"); 
         }
     }
 
@@ -235,6 +239,10 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.pushView(new TimeFormatMenu(id, item), new PropertyMenuDelegate(id, item, false), WatchUi.SLIDE_LEFT);
         } else if (id.equals("StormglassApiKey")) {
             item.setSubLabel(TideWatchSettingsMenu.loadStr(Rez.Strings.SetInConnectIQ));
+            WatchUi.requestUpdate();
+        } else if (id.equals("ForceSync")) {
+            item.setSubLabel(TideWatchSettingsMenu.loadStr(Rez.Strings.SyncExecuting));
+            TideWatchSettingsMenu.triggerImmediateSync(false);
             WatchUi.requestUpdate();
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
