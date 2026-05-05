@@ -29,7 +29,18 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
     }
 
+    function getAppId() as String? {
+        return Application.Storage.getValue("AppId") as String?;
+    }
+
     function onTemporalEvent() as Void {
+        var appId = getAppId();
+        if (appId == null) {
+            System.println("AppId missing from storage. Background sync aborted.");
+            Background.exit(false);
+            return;
+        }
+
         mApiKey = Application.Properties.getValue("StormglassApiKey");
 
         var gpsLat = Application.Properties.getValue("GpsLat");
@@ -79,13 +90,13 @@ class TideWatchBackground extends System.ServiceDelegate {
         return false;
     }
 
-    function isFresh(key as String) as Boolean {
+    function isFresh(key as String, freshnessSec as Number) as Boolean {
         var updatedAt = Application.Storage.getValue(key);
         if (updatedAt == null || !(updatedAt instanceof Number)) {
             return false;
         }
         var now = Time.now().value();
-        if (now - (updatedAt as Number) < Constants.DATA_FRESHNESS_THRESHOLD_SEC) {
+        if (now - (updatedAt as Number) < freshnessSec) {
             return true;
         }
         return false;
@@ -100,7 +111,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeBigDataCloudRequest() as Void {
-        if (isFresh("geocodeUpdatedAt")) {
+        if (isFresh("geocodeUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Geocoding data is fresh, skipping.");
             if (mApiKey != null && !mApiKey.equals("")) {
                 makeStormglassWeatherRequest();
@@ -121,7 +132,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
                 "Authorization" => mApiKey,
-                "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA" 
+                "X-App-Id" => getAppId()
             }
         };
         System.println("Requesting BigDataCloud Reverse-Geocode with: " + url + " parameters: " + params);
@@ -155,7 +166,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeStormglassWeatherRequest() as Void {
-        if (isFresh("weatherUpdatedAt")) {
+        if (isFresh("weatherUpdatedAt", Constants.SLOW_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Weather data is fresh, skipping.");
             makeTideTimelineRequest();
             return;
@@ -175,7 +186,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
                 "Authorization" => mApiKey,
-                "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA"
+                "X-App-Id" => getAppId()
             }
         };
         System.println("Requesting Stormglass Weather with: " + url + " parameters: " + params);
@@ -246,7 +257,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeTideTimelineRequest() as Void {
-        if (isFresh("tideTimelineUpdatedAt")) {
+        if (isFresh("tideTimelineUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Tide timeline data is fresh, skipping.");
             makeTideExtremesRequest();
             return;
@@ -266,7 +277,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
-                "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA"
+                "X-App-Id" => getAppId()
             }
         };
         System.println("Requesting Tide Timeline: " + url + " parameters: " + params);
@@ -316,7 +327,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     function makeTideExtremesRequest() as Void {
-        if (isFresh("tideExtremesUpdatedAt")) {
+        if (isFresh("tideExtremesUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Tide extremes data is fresh, skipping.");
             finalizeSync();
             return;
@@ -336,7 +347,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :headers => { 
-                "X-App-Id" => "app-Z9xbg5GQW8p7I6nDtRA"
+                "X-App-Id" => getAppId()
             }
         };
         System.println("Requesting Tide Extremes with: " + url + " parameters: " + params);
@@ -384,8 +395,6 @@ class TideWatchBackground extends System.ServiceDelegate {
         saveSyncError(responseCode);
         Background.exit(false);
     }
-
-    // Utility functions parseIso8601ToUnix, formatIso8601, and extractSourceValue removed as proxy returns compacted format
 
     function saveSyncError(code as Number) as Void {
         Application.Storage.setValue("syncError", code);

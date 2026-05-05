@@ -25,3 +25,6 @@ skills/
 # Private Files
 TODO
 tide_watch.prg.debug.xml
+
+# Ignore the secret resource file
+resources/strings/secrets.xml

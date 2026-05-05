@@ -30,6 +30,9 @@ class TideWatchApp extends Application.AppBase {
     }
 
     function getInitialView() {
+        // Store AppId for background service since Rez isn't accessible there
+        Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
+
         if (System has :ServiceDelegate) {
             scheduleNextBackgroundEvent(null);
         }
@@ -49,7 +52,7 @@ class TideWatchApp extends Application.AppBase {
         
         // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
-            var earliest = Time.now().add(new Time.Duration(Constants.DATA_FRESHNESS_THRESHOLD_SEC));
+            var earliest = Time.now().add(new Time.Duration(Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC));
             scheduleNextBackgroundEvent(earliest);
         }
     }
