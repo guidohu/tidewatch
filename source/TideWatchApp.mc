@@ -52,7 +52,7 @@ class TideWatchApp extends Application.AppBase {
         
         // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
-            var earliest = Time.now().add(new Time.Duration(Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC));
+            var earliest = Time.now().add(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
             scheduleNextBackgroundEvent(earliest);
         }
     }
