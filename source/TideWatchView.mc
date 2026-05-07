@@ -371,7 +371,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     }
                 }
             } else {
-                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "No Swells", baseColor);
+                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "no swell data available", baseColor);
             }
         }
 
