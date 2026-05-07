@@ -313,13 +313,20 @@ class TideWatchBackground extends System.ServiceDelegate {
                 Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
                 Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
                 mDataUpdatedThisRun = true;
+                
+                gridTimes = null;
+                gridHeights = null;
+                data = null;
+                makeTideExtremesRequest();
+                return;
+            } else {
+                gridTimes = null;
+                gridHeights = null;
+                data = null;
+                saveSyncError(DataKeys.ERROR_NO_DATA);
+                Background.exit(false);
+                return;
             }
-            
-            gridTimes = null;
-            gridHeights = null;
-            data = null;
-            makeTideExtremesRequest();
-            return;
         }
         
         saveSyncError(responseCode);

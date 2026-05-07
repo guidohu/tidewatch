@@ -310,6 +310,8 @@ class TideWatchView extends WatchUi.WatchFace {
             if (mSyncError != null) {
                 if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
                     msg = "API Limit Reached";
+                } else if (mSyncError == DataKeys.ERROR_NO_DATA) {
+                    msg = "no tide data available";
                 } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                     msg = "no connection";
                 } else {

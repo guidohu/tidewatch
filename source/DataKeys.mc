@@ -8,6 +8,7 @@ module DataKeys {
         UNIT_METER = 18,
         UNIT_FEET = 19,
         ERROR_QUOTA_EXCEEDED = -429,
+        ERROR_NO_DATA = -404,
         ERROR_PHONE_CONN_MIN = -200,
         ERROR_PHONE_CONN_MAX = -100,
         
