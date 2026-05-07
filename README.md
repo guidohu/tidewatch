@@ -11,8 +11,8 @@ If you like this watch face, please consider supporting its development:
 ## Key Features
 
 - **Tide & Swell Graphs**: High-resolution graphs that visualize tide and optional swell height trends over time.
-- **Surfline Integration**: Pulls accurate data using either a Surfline Spot ID or by automatically finding the closest spot to your GPS Coordinates.
-- **Smart Spot Name Extraction**: Displays the actual surf spot name extracted from wave data, ensuring you know exactly where the conditions are for.
+- **Stormglass.io Integration**: Get detailed swell information by providing your own Stormglass.io API key.
+- **Global Tide Data**: Uses your GPS coordinates to automatically fetch the most relevant tide data for your location.
 - **Customizable Units**: Toggle between Metric (Meters) and Imperial (Feet) for tide and swell heights independently.
 - **Rich Personalization**:
   - Choose from an expanded palette of colors for tide height, the tide graph, and base text (including Petrol, Turquoise, and more).
@@ -26,11 +26,14 @@ If you like this watch face, please consider supporting its development:
 ## Configuration
 
 To set up Tide Watch:
-1.  **Location/Spot**:
-    - **Surfline Spot ID**: Enter the specific ID from the Surfline URL.
-    - **GPS Coordinates**: Enter your Lat,Lon (e.g., `-8.65,115.12`) to automatically find and use the nearest surf spot.
-2.  **Units**: Select your preferred units (Meters or Feet) for tide and swell heights.
-3.  **Colors**: Personalize the appearance with a wide range of modern colors.
+1.  **Location**:
+    - **GPS Coordinates**: In the Garmin Connect IQ app settings, enter your **Latitude** and **Longitude** (e.g., `21.27` and `-157.82` for Waikiki). This is required to fetch local tide data.
+2.  **Swell Data (Optional)**:
+    - **Stormglass.io API Key**: If you want to see swell graphs and summaries, you must provide an API key from [stormglass.io](https://stormglass.io). Enter this key in the **Stormglass API Key** field.
+3.  **Units & Appearance**:
+    - Select your preferred units (Meters or Feet).
+    - Personalize the colors for the tide graph, text, and indicators.
+
 
 ## Supported Devices
 
