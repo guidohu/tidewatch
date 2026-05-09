@@ -457,7 +457,7 @@ class TideWatchView extends WatchUi.WatchFace {
             if (nowX >= 0 && nowX <= width) {
                 dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
                 var markerY = graphY - graphHeight * (mCurrentHeight - mMinH) / (mMaxH - mMinH);
-                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), 3);
+                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * scale).toNumber());
             }
         }
 

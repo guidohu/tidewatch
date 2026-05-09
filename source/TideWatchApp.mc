@@ -18,12 +18,6 @@ class TideWatchApp extends Application.AppBase {
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
     }
 
-    function onStart(state as Dictionary?) as Void {
-    }
-
-    function onStop(state as Dictionary?) as Void {
-    }
-
     function onSettingsChanged() {
         TideWatchSettingsMenu.triggerImmediateSync(true);
         WatchUi.requestUpdate();
@@ -36,7 +30,7 @@ class TideWatchApp extends Application.AppBase {
         if (System has :ServiceDelegate) {
             scheduleNextBackgroundEvent(null);
         }
-        return [ new TideWatchView() ] as [Views];
+        return [ new TideWatchView() ] as [WatchUi.Views];
     }
 
     function onBackgroundData(data as Application.PersistableType) as Void {
@@ -48,7 +42,6 @@ class TideWatchApp extends Application.AppBase {
 
         Application.Storage.setValue("dataUpdatedAt", Time.now().value());
         WatchUi.requestUpdate();
-        logMemoryUsage();
         
         // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
@@ -81,7 +74,7 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
             }
 
             // Garmin only allows events that are at least 5 minutes after the last event for
-            // watch faces.
+            // watch faces and background apps.
             if (lastTime != null) {
                 var lastPlus5 = lastTime.add(new Time.Duration(5 * 60));
                 if (lastPlus5.value() > nextTime.value()) {
