@@ -1,3 +1,4 @@
+import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Graphics;
 import Toybox.Lang;
@@ -291,7 +292,25 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        if (gpsLat == null || gpsLat instanceof String && gpsLat.equals("") || gpsLon == null || gpsLon instanceof String && gpsLon.equals("")) {
+        if (gpsLat == null || (gpsLat instanceof String && gpsLat.equals("")) || gpsLon == null || (gpsLon instanceof String && gpsLon.equals(""))) {
+            var info = Activity.getActivityInfo();
+            if (info != null && info.currentLocation != null) {
+                var latLon = info.currentLocation.toDegrees();
+                var latStr = latLon[0].format("%.4f");
+                var lonStr = latLon[1].format("%.4f");
+                
+                Application.Properties.setValue("GpsLat", latStr);
+                Application.Properties.setValue("GpsLon", lonStr);
+                Application.Storage.deleteValue("spotName");
+                
+                gpsLat = latStr;
+                gpsLon = lonStr;
+                
+                scheduleNextBackgroundEvent(null);
+            }
+        }
+
+        if (gpsLat == null || (gpsLat instanceof String && gpsLat.equals("")) || gpsLon == null || (gpsLon instanceof String && gpsLon.equals(""))) {
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
              msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {

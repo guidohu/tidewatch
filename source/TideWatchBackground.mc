@@ -50,7 +50,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             mTargetLat = gpsLat.toFloat();
             mTargetLon = gpsLon.toFloat();
         } else {
-            System.println("No Custom Coordinates. Exit.");
+            System.println("No Location Set. Exit.");
             Background.exit(false);
             return;
         }

@@ -1,8 +1,8 @@
+import Toybox.Activity;
 import Toybox.Application;
 import Toybox.WatchUi;
 import Toybox.Lang;
 import Toybox.System;
-import Toybox.Position;
 import Toybox.Time;
 import Toybox.Background;
 import Toybox.Application.Storage;
@@ -261,9 +261,9 @@ class LocationOptionMenu extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.UseManualCoordinates), manualSub, "Manual", {}));
         
         var gpsSub = "No signal";
-        var info = Position.getInfo();
-        if (info != null && info.position != null) {
-            var latLon = info.position.toDegrees();
+        var info = Activity.getActivityInfo();
+        if (info != null && info.currentLocation != null) {
+            var latLon = info.currentLocation.toDegrees();
             gpsSub = latLon[0].format("%.4f") + ", " + latLon[1].format("%.4f");
         }
         addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.UseWatchLocation), gpsSub, "Watch", {}));
@@ -289,9 +289,9 @@ class LocationOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
             item.setSubLabel(WatchUi.loadResource(Rez.Strings.SetInConnectIQ) as String);
             WatchUi.requestUpdate();
         } else if (item.getId().equals("Watch")) {
-            var info = Position.getInfo();
-            if (info != null && info.position != null) {
-                var latLon = info.position.toDegrees();
+            var info = Activity.getActivityInfo();
+            if (info != null && info.currentLocation != null) {
+                var latLon = info.currentLocation.toDegrees();
                 var lat = latLon[0].format("%.4f");
                 var lon = latLon[1].format("%.4f");
                 Application.Properties.setValue("GpsLat", lat);
