@@ -137,7 +137,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             return;
         }
 
-        var url = "https://forecast.wakeandsurf.ch/data/reverse-geocode-client";
+        var url = "https://forecast.wakeandsurf.ch/data/reverse-geocode";
         var params = {
             "latitude" => mTargetLat,
             "longitude" => mTargetLon,
@@ -151,20 +151,32 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onReceiveBigDataCloud(responseCode as Number, data as Dictionary?) as Void {
         System.println("BigDataCloud response: " + responseCode);
         if (responseCode != 200) { System.println("BigDataCloud data: " + data); }
-        var spotName = "Unknown";
+        var spotName = null;
+        var success = false;
+
         if (responseCode == 200 && data != null) {
             var locality = data.get("locality");
             var city = data.get("city");
             if (locality != null && locality instanceof String && !locality.equals("")) {
                 spotName = locality;
+                success = true;
             } else if (city != null && city instanceof String && !city.equals("")) {
                 spotName = city;
+                success = true;
             }
         }
+
+        if (!success) {
+            spotName = Lang.format("$1$, $2$", [mTargetLat.format("%.2f"), mTargetLon.format("%.2f")]);
+            System.println("Geocoding failed, fallback to coordinates: " + spotName);
+        } else {
+            Application.Storage.setValue("geocodeUpdatedAt", Time.now().value());
+            System.println("Resolved spotName: " + spotName);
+        }
+
         Application.Storage.setValue("spotName", spotName);
-        Application.Storage.setValue("geocodeUpdatedAt", Time.now().value());
         mDataUpdatedThisRun = true;
-        System.println("Resolved spotName: " + spotName);
+
         // Always proceed to the next request
         data = null;
         if (mApiKey != null && !mApiKey.equals("")) {
