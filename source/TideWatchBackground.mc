@@ -82,7 +82,7 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function handleQuotaError(responseCode as Number) as Boolean {
         if (responseCode == 402 || responseCode == 429) {
-            System.println("Stormglass API Quota Exceeded (402/429)!");
+            System.println("API Quota Exceeded (402/429)!");
             saveSyncError(DataKeys.ERROR_QUOTA_EXCEEDED);
             Background.exit(false);
             return true;
@@ -92,14 +92,30 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function isFresh(key as String, freshnessSec as Number) as Boolean {
         var updatedAt = Application.Storage.getValue(key);
-        if (updatedAt == null || !(updatedAt instanceof Number)) {
-            return false;
-        }
-        var now = Time.now().value();
-        if (now - (updatedAt as Number) < freshnessSec) {
-            return true;
+        if (updatedAt != null && updatedAt instanceof Number) {
+            return (Time.now().value() - (updatedAt as Number)) < freshnessSec;
         }
         return false;
+    }
+
+    function getRequestOptions(includeAuth as Boolean) as Dictionary {
+        var headers = { "X-App-Id" => getAppId() };
+        if (includeAuth && mApiKey != null && !mApiKey.equals("")) {
+            headers.put("Authorization", mApiKey);
+        }
+        return {
+            :method => Communications.HTTP_REQUEST_METHOD_GET,
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :headers => headers
+        };
+    }
+
+    function parseFloatSafe(val as Object) as Float {
+        return (val instanceof Number) ? (val as Number).toFloat() : val as Float;
+    }
+
+    function parseNumberSafe(val as Object) as Number {
+        return (val instanceof Float) ? (val as Float).toNumber() : val as Number;
     }
 
     function finalizeSync() as Void {
@@ -127,14 +143,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             "longitude" => mTargetLon,
             "localityLanguage" => "en"
         };
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-            :headers => { 
-                "Authorization" => mApiKey,
-                "X-App-Id" => getAppId()
-            }
-        };
+        var options = getRequestOptions(true);
         System.println("Requesting BigDataCloud Reverse-Geocode with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveBigDataCloud));
     }
@@ -181,14 +190,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             "params" => "swellHeight,swellPeriod,swellDirection,secondarySwellHeight,secondarySwellPeriod,secondarySwellDirection",
             "source" => "noaa"
         };
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-            :headers => { 
-                "Authorization" => mApiKey,
-                "X-App-Id" => getAppId()
-            }
-        };
+        var options = getRequestOptions(true);
         System.println("Requesting Stormglass Weather with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveWeather));
     }
@@ -213,31 +215,17 @@ class TideWatchBackground extends System.ServiceDelegate {
                 var h = pt.get("h1");
                 var p = pt.get("p1");
                 var d = pt.get("d1");
-                if (h != null) {
-                    var hFloat = (h instanceof Number) ? (h as Number).toFloat() : h as Float;
-                    wPoint[0] = (hFloat * 100.0).toNumber();
-                }
-                if (p != null) {
-                    wPoint[1] = (p instanceof Number) ? p as Number : (p as Float).toNumber();
-                }
-                if (d != null) {
-                    wPoint[2] = (d instanceof Number) ? d as Number : (d as Float).toNumber();
-                }
+                if (h != null) { wPoint[0] = (parseFloatSafe(h) * 100.0).toNumber(); }
+                if (p != null) { wPoint[1] = parseNumberSafe(p); }
+                if (d != null) { wPoint[2] = parseNumberSafe(d); }
 
                 // Secondary Swell
                 var h2 = pt.get("h2");
                 var p2 = pt.get("p2");
                 var d2 = pt.get("d2");
-                if (h2 != null) {
-                    var h2Float = (h2 instanceof Number) ? (h2 as Number).toFloat() : h2 as Float;
-                    wPoint[3] = (h2Float * 100.0).toNumber();
-                }
-                if (p2 != null) {
-                    wPoint[4] = (p2 instanceof Number) ? p2 as Number : (p2 as Float).toNumber();
-                }
-                if (d2 != null) {
-                    wPoint[5] = (d2 instanceof Number) ? d2 as Number : (d2 as Float).toNumber();
-                }
+                if (h2 != null) { wPoint[3] = (parseFloatSafe(h2) * 100.0).toNumber(); }
+                if (p2 != null) { wPoint[4] = parseNumberSafe(p2); }
+                if (d2 != null) { wPoint[5] = parseNumberSafe(d2); }
 
                 waveResults[i] = wPoint;
             }
@@ -273,13 +261,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (mDatumStr != null) {
             params.put("datum", mDatumStr);
         }
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-            :headers => { 
-                "X-App-Id" => getAppId()
-            }
-        };
+        var options = getRequestOptions(false);
         System.println("Requesting Tide Timeline: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveTide));
     }
@@ -300,8 +282,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 gridTimes[i] = point.get("ts") as Number;
                 var h = point.get("h");
                 if (h != null) {
-                    var hFloat = (h instanceof Number) ? (h as Number).toFloat() : h as Float;
-                    gridHeights[i] = (hFloat * 100.0).toNumber();
+                    gridHeights[i] = (parseFloatSafe(h) * 100.0).toNumber();
                 } else {
                     gridHeights[i] = 0;
                 }
@@ -350,13 +331,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (mDatumStr != null) {
             params.put("datum", mDatumStr);
         }
-        var options = {
-            :method => Communications.HTTP_REQUEST_METHOD_GET,
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-            :headers => { 
-                "X-App-Id" => getAppId()
-            }
-        };
+        var options = getRequestOptions(false);
         System.println("Requesting Tide Extremes with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
@@ -384,8 +359,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                     var ts = point.get("ts");
                     var hVal = point.get("h");
                     if (ts != null && hVal != null) {
-                        var hFloat = (hVal instanceof Number) ? (hVal as Number).toFloat() : hVal as Float;
-                        extrema.add([ts, (hFloat * 100.0).toNumber(), typeCode]);
+                        extrema.add([ts, (parseFloatSafe(hVal) * 100.0).toNumber(), typeCode]);
                     }
                 }
             }
