@@ -209,7 +209,23 @@ class TideWatchBackground extends System.ServiceDelegate {
 
     function onReceiveWeather(responseCode as Number, data as Dictionary?) as Void {
         System.println("Weather response: " + responseCode);
-        if (responseCode != 200) { System.println("Weather data: " + data); }
+        if (responseCode != 200) { 
+            System.println("Weather data: " + data);
+            var errCode = DataKeys.ERROR_OTHER;
+            if (data != null && data instanceof Dictionary && data.hasKey("errors")) {
+                var errors = data.get("errors") as Dictionary;
+                if (errors.hasKey("key")) {
+                    var keyErr = errors.get("key") as String;
+                    if (keyErr.equals("API key is invalid")) {
+                        errCode = DataKeys.ERROR_INVALID_KEY;
+                    }
+                }
+            }
+            Application.Storage.setValue("weatherError", errCode);
+        } else {
+            Application.Storage.deleteValue("weatherError");
+        }
+
         logMemoryUsage();
         if (handleQuotaError(responseCode)) { return; }
 
@@ -248,12 +264,10 @@ class TideWatchBackground extends System.ServiceDelegate {
             mDataUpdatedThisRun = true;
             waveResults = null;
             data = null;
-            makeTideTimelineRequest();
-            return;
         }
         
-        saveSyncError(responseCode);
-        Background.exit(false);
+        // If we failed weather (but not quota), still try tides
+        makeTideTimelineRequest();
     }
 
     function makeTideTimelineRequest() as Void {

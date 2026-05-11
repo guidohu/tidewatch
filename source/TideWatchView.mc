@@ -51,6 +51,7 @@ class TideWatchView extends WatchUi.WatchFace {
     var mcSpotName as String? = null;
     var mSyncError as Number? = null;
     var mErrorAt as Number? = null;
+    var mWeatherError as Number? = null;
 
     function initialize() {
         WatchFace.initialize();
@@ -101,6 +102,7 @@ class TideWatchView extends WatchUi.WatchFace {
             mcSpotName = Application.Storage.getValue("spotName") as String?;
             mSyncError = Application.Storage.getValue("syncError") as Number?;
             mErrorAt = Application.Storage.getValue("errorAt") as Number?;
+            mWeatherError = Application.Storage.getValue("weatherError") as Number?;
         }
 
         // --- Continuous UI Calculations (Every Frame) ---
@@ -366,6 +368,10 @@ class TideWatchView extends WatchUi.WatchFace {
         if (showSwellSummary) {
             if (!hasApiKey) {
                 drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
+            } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
+                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
+            } else if (mWeatherError == DataKeys.ERROR_OTHER) {
+                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
             } else if (mValidSwells.size() > 0) {
                 var totalSwellW = 0;
                 var arrowW = (10 * scale).toNumber();
@@ -471,12 +477,13 @@ class TideWatchView extends WatchUi.WatchFace {
 
         if (showSyncError) {
             var errMsg = "sync error";
-            if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
+            var errColor = Graphics.COLOR_RED;
+            if (mSyncError != null && mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
                 errMsg = "API Limit Reached";
-            } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
+            } else if (mSyncError != null && mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                 errMsg = "no connection";
             }
-            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, errMsg, Graphics.COLOR_RED);
+            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, errMsg, errColor);
         } else if (mcSpotName != null) {
             var nameColor = baseColor;
             if (isStale || mSyncError != null) {

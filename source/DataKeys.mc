@@ -11,6 +11,8 @@ module DataKeys {
         ERROR_NO_DATA = -404,
         ERROR_PHONE_CONN_MIN = -200,
         ERROR_PHONE_CONN_MAX = -100,
+        ERROR_INVALID_KEY = -401,
+        ERROR_OTHER = -1,
         
         SETTING_UNIT_METERS = 0,
         SETTING_UNIT_FEET = 1,
