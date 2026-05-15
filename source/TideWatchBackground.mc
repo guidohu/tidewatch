@@ -55,6 +55,12 @@ class TideWatchBackground extends System.ServiceDelegate {
                 Background.exit(false);
                 return;
             }
+            // For 0.0/0.0 we assume that the coordinates have not been set and abort.
+            if (gpsLat == 0.0 && gpsLon == 0.0) {
+                System.println("Coordinates are 0.0, 0.0 (Not Set). Exit.");
+                Background.exit(false);
+                return;
+            }
 
             mTargetLat = gpsLat.toFloat();
             mTargetLon = gpsLon.toFloat();

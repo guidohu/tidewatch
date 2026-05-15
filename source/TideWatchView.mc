@@ -294,25 +294,39 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        if (gpsLat == null || (gpsLat instanceof String && gpsLat.equals("")) || gpsLon == null || (gpsLon instanceof String && gpsLon.equals(""))) {
-            var info = Activity.getActivityInfo();
-            if (info != null && info.currentLocation != null) {
-                var latLon = info.currentLocation.toDegrees();
-                var latStr = latLon[0].format("%.4f");
-                var lonStr = latLon[1].format("%.4f");
-                
-                Application.Properties.setValue("GpsLat", latStr);
-                Application.Properties.setValue("GpsLon", lonStr);
-                Application.Storage.deleteValue("spotName");
-                
-                gpsLat = latStr;
-                gpsLon = lonStr;
-                
-                scheduleNextBackgroundEvent(null);
+        // If coordinates are missing, empty, or both 0.0, try to get them from the activity info
+        var isGpsNotSet = (gpsLat == null || gpsLon == null);
+        if (!isGpsNotSet) {
+            if (gpsLat instanceof String) {
+                isGpsNotSet = gpsLat.equals("") || gpsLon.equals("");
+            } else {
+                isGpsNotSet = (gpsLat.toFloat() == 0.0 && gpsLon.toFloat() == 0.0);
             }
         }
 
-        if (gpsLat == null || (gpsLat instanceof String && gpsLat.equals("")) || gpsLon == null || (gpsLon instanceof String && gpsLon.equals(""))) {
+        if (isGpsNotSet) {
+            var info = Activity.getActivityInfo();
+            if (info != null && info.currentLocation != null) {
+                var latLon = info.currentLocation.toDegrees();
+                var lat = latLon[0].toFloat();
+                var lon = latLon[1].toFloat();
+                
+                // Only use if not 0,0 from activity info either
+                if (lat != 0.0 || lon != 0.0) {
+                    Application.Properties.setValue("GpsLat", lat);
+                    Application.Properties.setValue("GpsLon", lon);
+                    Application.Storage.deleteValue("spotName");
+                    
+                    gpsLat = lat;
+                    gpsLon = lon;
+                    isGpsNotSet = false;
+                    
+                    scheduleNextBackgroundEvent(null);
+                }
+            }
+        }
+
+        if (isGpsNotSet) {
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
              msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {
