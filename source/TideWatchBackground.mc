@@ -46,11 +46,20 @@ class TideWatchBackground extends System.ServiceDelegate {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        if (gpsLat != null && gpsLat instanceof String && !gpsLat.equals("") && gpsLon != null && gpsLon instanceof String && !gpsLon.equals("")) {
+        if (gpsLat != null && (gpsLat instanceof Float || gpsLat instanceof Double) && 
+            gpsLon != null && (gpsLon instanceof Float || gpsLon instanceof Double)) {
+            
+            // Final safety check for range
+            if (gpsLat < -90.0 || gpsLat > 90.0 || gpsLon < -180.0 || gpsLon > 180.0) {
+                System.println("Coordinates out of range. Exit.");
+                Background.exit(false);
+                return;
+            }
+
             mTargetLat = gpsLat.toFloat();
             mTargetLon = gpsLon.toFloat();
         } else {
-            System.println("No Location Set. Exit.");
+            System.println("No Location Set or invalid type. Exit.");
             Background.exit(false);
             return;
         }

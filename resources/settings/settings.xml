@@ -1,10 +1,10 @@
 <resources>
     <settings>
         <setting propertyKey="@Properties.GpsLat" title="@Strings.GpsLatTitle" prompt="@Strings.GpsLatPrompt">
-            <settingConfig type="alphaNumeric" />
+            <settingConfig type="numeric" min="-90" max="90" />
         </setting>
         <setting propertyKey="@Properties.GpsLon" title="@Strings.GpsLonTitle" prompt="@Strings.GpsLonPrompt">
-            <settingConfig type="alphaNumeric" />
+            <settingConfig type="numeric" min="-180" max="180" />
         </setting>
         <setting propertyKey="@Properties.TideDatum" title="@Strings.TideDatumTitle">
             <settingConfig type="list">

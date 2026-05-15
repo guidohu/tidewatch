@@ -19,6 +19,19 @@ class TideWatchApp extends Application.AppBase {
     }
 
     function onSettingsChanged() {
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        if (gpsLat != null && (gpsLat instanceof Float || gpsLat instanceof Double)) {
+            if (gpsLat < -90.0) { Application.Properties.setValue("GpsLat", -90.0); }
+            else if (gpsLat > 90.0) { Application.Properties.setValue("GpsLat", 90.0); }
+        }
+
+        if (gpsLon != null && (gpsLon instanceof Float || gpsLon instanceof Double)) {
+            if (gpsLon < -180.0) { Application.Properties.setValue("GpsLon", -180.0); }
+            else if (gpsLon > 180.0) { Application.Properties.setValue("GpsLon", 180.0); }
+        }
+
         TideWatchSettingsMenu.triggerImmediateSync(true);
         WatchUi.requestUpdate();
     }
