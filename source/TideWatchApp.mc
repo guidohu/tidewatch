@@ -13,6 +13,38 @@ class TideWatchApp extends Application.AppBase {
         AppBase.initialize();
     }
 
+    function migrateSettings() as Void {
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        if (gpsLat instanceof String) {
+            var latFloat = 0.0;
+            try {
+                var f = gpsLat.toFloat();
+                if (f != null && LocationUtils.isValidLatitude(f)) {
+                    latFloat = f.toFloat();
+                }
+            } catch (e) {
+                System.println("Failed to parse GpsLat: " + e.getErrorMessage());
+            }
+            Application.Properties.setValue("GpsLat", latFloat);
+            System.println("Migrated GpsLat from String to Float.");
+        }
+        
+        var gpsLon = Application.Properties.getValue("GpsLon");
+        if (gpsLon instanceof String) {
+            var lonFloat = 0.0;
+            try {
+                var f = gpsLon.toFloat();
+                if (f != null && LocationUtils.isValidLongitude(f)) {
+                    lonFloat = f.toFloat();
+                }
+            } catch (e) {
+                System.println("Failed to parse GpsLon: " + e.getErrorMessage());
+            }
+            Application.Properties.setValue("GpsLon", lonFloat);
+            System.println("Migrated GpsLon from String to Float.");
+        }
+    }
+
     function logMemoryUsage() {
         var stats = System.getSystemStats();
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
@@ -22,14 +54,11 @@ class TideWatchApp extends Application.AppBase {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        if (gpsLat != null && (gpsLat instanceof Float || gpsLat instanceof Double)) {
-            if (gpsLat < -90.0) { Application.Properties.setValue("GpsLat", -90.0); }
-            else if (gpsLat > 90.0) { Application.Properties.setValue("GpsLat", 90.0); }
+        if (!LocationUtils.isValidLatitude(gpsLat)) {
+            Application.Properties.setValue("GpsLat", 0.0);
         }
-
-        if (gpsLon != null && (gpsLon instanceof Float || gpsLon instanceof Double)) {
-            if (gpsLon < -180.0) { Application.Properties.setValue("GpsLon", -180.0); }
-            else if (gpsLon > 180.0) { Application.Properties.setValue("GpsLon", 180.0); }
+        if (!LocationUtils.isValidLongitude(gpsLon)) {
+            Application.Properties.setValue("GpsLon", 0.0);
         }
 
         TideWatchSettingsMenu.triggerImmediateSync(true);
@@ -39,6 +68,8 @@ class TideWatchApp extends Application.AppBase {
     function getInitialView() {
         // Store AppId for background service since Rez isn't accessible there
         Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
+
+        migrateSettings();
 
         if (System has :ServiceDelegate) {
             scheduleNextBackgroundEvent(null);
