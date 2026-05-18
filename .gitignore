@@ -2,6 +2,7 @@
 bin/
 gen/
 mir/
+external-mir/
 internal-mir/
 
 # Compiled App Files

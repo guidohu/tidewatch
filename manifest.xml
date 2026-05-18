@@ -115,6 +115,8 @@
         <iq:languages>
             <iq:language>eng</iq:language>
         </iq:languages>
-        <iq:barrels/>
+        <iq:barrels>
+            <iq:depends name="KPayClock" version="2.0.0"/>
+        </iq:barrels>
     </iq:application>
 </iq:manifest>

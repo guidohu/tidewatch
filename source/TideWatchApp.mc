@@ -5,12 +5,21 @@ import Toybox.System;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
 import Toybox.WatchUi;
+using KPayClock.KPay as KPay;
+
+var kpay as KPay.Core?;
 
 (:background)
 class TideWatchApp extends Application.AppBase {
 
     function initialize() {
         AppBase.initialize();
+    }
+
+    function onStop(state as Dictionary?) as Void {
+        if (kpay != null) {
+            kpay.onStop();
+        }
     }
 
     function migrateSettings() as Void {
@@ -71,6 +80,8 @@ class TideWatchApp extends Application.AppBase {
 
         migrateSettings();
 
+        kpay = new KPay.Core(getKPayConfig());
+
         if (System has :ServiceDelegate) {
             scheduleNextBackgroundEvent(null);
         }
@@ -81,11 +92,19 @@ class TideWatchApp extends Application.AppBase {
         System.println("onBackgroundData called with data: " + (data == null ? "null" : data.toString()));
         logMemoryUsage();
         
-        // Data is now saved directly to Storage by the background service.
-        // We just need to trigger a UI refresh and handle follow-up registration.
-
-        Application.Storage.setValue("dataUpdatedAt", Time.now().value());
-        WatchUi.requestUpdate();
+        if (kpay != null && data instanceof Dictionary) {
+            kpay.onBackgroundData(data);
+            
+            var response = (data as Dictionary)[(kpay as KPay.Core).extraResponseKey];
+            if (response != null) {
+                // Data is now saved directly to Storage by the background service.
+                // We just need to trigger a UI refresh and handle follow-up registration.
+                Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+                WatchUi.requestUpdate();
+            }
+        } else {
+            System.println("TideWatch Background service: kpay is null or no data");
+        }
         
         // Configure periodic intervals after the first accelerated sync
         if (System has :ServiceDelegate) {
@@ -95,7 +114,8 @@ class TideWatchApp extends Application.AppBase {
     }
 
     function getServiceDelegate() {
-        return [ new TideWatchBackground() ] as [System.ServiceDelegate];
+        System.println("TideWatch Background service: getServiceDelegate");
+        return [ new KPay.KPayBackgroundServiceDelegate(TideWatchBackground, 0) ] as [System.ServiceDelegate];
     }
 
     function getSettingsView() {
@@ -135,7 +155,7 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
                 info.min.format("%02d"),
                 info.sec.format("%02d")
             ]));
-
+            
             Background.registerForTemporalEvent(nextTime);
         } catch (e) {
             System.println("Background registration failed: " + e.getErrorMessage()); 

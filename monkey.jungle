@@ -1,1 +1,3 @@
 project.manifest = manifest.xml
+base.barrelPath = $(base.barrelPath);kpay-clock.barrel
+

@@ -19,9 +19,20 @@ class TideWatchBackground extends System.ServiceDelegate {
     var mDatumStr as String? = null;
     var mDataUpdatedThisRun as Boolean = false;
 
-    function initialize() {
+    var mKpayCallback;
+
+    function initialize(cb) {
         ServiceDelegate.initialize();
-        System.println("Tide Watch started successfully");
+        mKpayCallback = cb;
+        System.println("Tide Watch background task started successfully");
+    }
+
+    function exitBackground(data) as Void {
+        if (mKpayCallback != null) {
+            mKpayCallback.invoke(data);
+        } else {
+            Background.exit(data);
+        }
     }
 
     function logMemoryUsage() {
@@ -37,7 +48,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         var appId = getAppId();
         if (appId == null) {
             System.println("AppId missing from storage. Background sync aborted.");
-            Background.exit(false);
+            exitBackground(false);
             return;
         }
 
@@ -50,7 +61,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             // For 0.0/0.0 we assume that the coordinates have not been set and abort.
             if (gpsLat.toFloat() == 0.0 && gpsLon.toFloat() == 0.0) {
                 System.println("Coordinates are 0.0, 0.0 (Not Set). Exit.");
-                Background.exit(false);
+                exitBackground(false);
                 return;
             }
 
@@ -58,7 +69,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             mTargetLon = gpsLon.toFloat();
         } else {
             System.println("No Location Set or invalid range/type. Exit.");
-            Background.exit(false);
+            exitBackground(false);
             return;
         }
 
@@ -91,7 +102,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (responseCode == 402 || responseCode == 429) {
             System.println("API Quota Exceeded (402/429)!");
             saveSyncError(DataKeys.ERROR_QUOTA_EXCEEDED);
-            Background.exit(false);
+            exitBackground(false);
             return true;
         }
         return false;
@@ -130,7 +141,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             Application.Storage.setValue("dataUpdatedAt", Time.now().value());
         }
         clearSyncError();
-        Background.exit(true);
+        exitBackground(true);
     }
 
     function makeBigDataCloudRequest() as Void {
@@ -338,13 +349,13 @@ class TideWatchBackground extends System.ServiceDelegate {
                 gridHeights = null;
                 data = null;
                 saveSyncError(DataKeys.ERROR_NO_DATA);
-                Background.exit(false);
+                exitBackground(false);
                 return;
             }
         }
         
         saveSyncError(responseCode);
-        Background.exit(false);
+        exitBackground(false);
     }
 
     function makeTideExtremesRequest() as Void {
@@ -407,7 +418,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
         
         saveSyncError(responseCode);
-        Background.exit(false);
+        exitBackground(false);
     }
 
     function saveSyncError(code as Number) as Void {

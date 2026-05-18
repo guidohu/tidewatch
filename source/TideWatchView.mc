@@ -57,9 +57,15 @@ class TideWatchView extends WatchUi.WatchFace {
         WatchFace.initialize();
     }
 
-
-
     function onUpdate(dc as Dc) as Void {
+        // Payment Dialog
+        if (kpay != null && (kpay as KPayClock.KPay.Core).shouldShowDialog()) {
+            (kpay as KPayClock.KPay.Core).drawDialog(dc);
+            return;
+        }
+        dc.setPenWidth(1);
+
+        // Actual App
         var now = Time.now().value();
         var tideUnits = Application.Properties.getValue("TideUnits");
         var swellUnits = Application.Properties.getValue("SwellUnits");
