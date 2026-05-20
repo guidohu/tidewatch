@@ -46,4 +46,6 @@
     <string id="SetInConnectIQ">Set in Connect IQ</string>
     <string id="SyncTitle">Force Sync</string>
     <string id="SyncExecuting">Scheduled in 5 min</string>
+    <string id="EnableKPayTitle">Enable Payments</string>
+    <string id="ExperimentsTitle">Experiments</string>
 </resources>

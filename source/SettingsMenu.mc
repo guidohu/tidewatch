@@ -71,6 +71,8 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         }
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.StormglassApiKeyTitle), apiKeyStr, "StormglassApiKey", {}));
         
+        addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.ExperimentsTitle), "", "Experiments", {}));
+        
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.SyncTitle), "", "ForceSync", {}));
     }
 
@@ -239,6 +241,8 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             item.setSubLabel(TideWatchSettingsMenu.loadStr(Rez.Strings.SyncExecuting));
             TideWatchSettingsMenu.triggerImmediateSync(false);
             WatchUi.requestUpdate();
+        } else if (id.equals("Experiments")) {
+            WatchUi.pushView(new ExperimentsMenu(), new ExperimentsMenuDelegate(), WatchUi.SLIDE_LEFT);
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
         }
@@ -360,5 +364,28 @@ class TimeFormatMenu extends WatchUi.Menu2 {
         Menu2.initialize({:title=>TideWatchSettingsMenu.loadStr(Rez.Strings.TimeFormatTitle)});
         addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.Format24Hour), null, DataKeys.TIME_FORMAT_24_H, {}));
         addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.Format12Hour), null, DataKeys.TIME_FORMAT_12_H, {}));
+    }
+}
+
+class ExperimentsMenu extends WatchUi.Menu2 {
+    function initialize() {
+        Menu2.initialize({:title=>TideWatchSettingsMenu.loadStr(Rez.Strings.ExperimentsTitle)});
+        var enableKPay = Application.Properties.getValue("EnableKPay") as Boolean;
+        addItem(new WatchUi.ToggleMenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.EnableKPayTitle), null, "EnableKPay", enableKPay, {}));
+    }
+}
+
+class ExperimentsMenuDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+    
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        var id = item.getId() as String;
+        if (id.equals("EnableKPay")) {
+            var val = (item as WatchUi.ToggleMenuItem).isEnabled();
+            Application.Properties.setValue(id, val);
+            (Application.getApp() as TideWatchApp).onSettingsChanged();
+        }
     }
 }

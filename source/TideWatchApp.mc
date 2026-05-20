@@ -70,6 +70,16 @@ class TideWatchApp extends Application.AppBase {
             Application.Properties.setValue("GpsLon", 0.0);
         }
 
+        var enableKPayVal = Application.Properties.getValue("EnableKPay");
+        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
+        if (enableKPay) {
+            if (kpay == null) {
+                kpay = new KPay.Core(getKPayConfig());
+            }
+        } else {
+            kpay = null;
+        }
+
         TideWatchSettingsMenu.triggerImmediateSync(true);
         WatchUi.requestUpdate();
     }
@@ -80,30 +90,59 @@ class TideWatchApp extends Application.AppBase {
 
         migrateSettings();
 
-        kpay = new KPay.Core(getKPayConfig());
+        var enableKPayVal = Application.Properties.getValue("EnableKPay");
+        if (enableKPayVal != null && enableKPayVal as Boolean == true) {
+            kpay = new KPay.Core(getKPayConfig());
+        }
 
         if (System has :ServiceDelegate) {
-            scheduleNextBackgroundEvent(null);
+           scheduleNextBackgroundEvent(null);
         }
         return [ new TideWatchView() ] as [WatchUi.Views];
     }
 
+    /**
+     * Handles data returned by the background service delegate.
+     * 
+     * Expected data formats:
+     * - KPay Enabled: We expect a Dictionary returned by KPay containing licensing info 
+     *   and the sync success status (Boolean) nested under its extraResponseKey.
+     * - KPay Disabled: We expect a direct Boolean value representing the sync success status.
+     * - Everything else is unexpected and ignored.
+     * 
+     * Note: Our custom background service (TideWatchBackground) writes all retrieved tide and
+     * weather data directly to Application.Storage. The return value passed here is only used to
+     * indicate sync success, update the timestamp, and trigger a UI refresh.
+     * 
+     * @param data The persistable type returned by the background service delegate.
+     */
     function onBackgroundData(data as Application.PersistableType) as Void {
         System.println("onBackgroundData called with data: " + (data == null ? "null" : data.toString()));
         logMemoryUsage();
         
         if (kpay != null && data instanceof Dictionary) {
+            // Let KPay process its own data and update its internal state.
             kpay.onBackgroundData(data);
-            
+
+            // Extract the actual response from our background task.
             var response = (data as Dictionary)[(kpay as KPay.Core).extraResponseKey];
-            if (response != null) {
+            if (response instanceof Boolean && response as Boolean) {
                 // Data is now saved directly to Storage by the background service.
                 // We just need to trigger a UI refresh and handle follow-up registration.
                 Application.Storage.setValue("dataUpdatedAt", Time.now().value());
                 WatchUi.requestUpdate();
+            } else {
+                System.println("TideWatch Background service: kpay pass-through sync failed");
+            }
+        } else if (kpay == null && data instanceof Boolean) {
+            if (data as Boolean) {
+                Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+                WatchUi.requestUpdate();
+            } else {
+                System.println("TideWatch Background service: sync failed");
             }
         } else {
-            System.println("TideWatch Background service: kpay is null or no data");
+            System.println("TideWatch Background service: unknown data format or failed sync");
         }
         
         // Configure periodic intervals after the first accelerated sync
@@ -115,7 +154,12 @@ class TideWatchApp extends Application.AppBase {
 
     function getServiceDelegate() {
         System.println("TideWatch Background service: getServiceDelegate");
-        return [ new KPay.KPayBackgroundServiceDelegate(TideWatchBackground, 0) ] as [System.ServiceDelegate];
+        var enableKPayVal = Application.Properties.getValue("EnableKPay");
+        if (enableKPayVal != null && enableKPayVal as Boolean == true) {
+            return [ new KPay.KPayBackgroundServiceDelegate(TideWatchBackground, 0) ] as [System.ServiceDelegate];
+        } else {
+            return [ new TideWatchBackground(null) ] as [System.ServiceDelegate];
+        }
     }
 
     function getSettingsView() {

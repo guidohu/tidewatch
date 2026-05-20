@@ -13,5 +13,6 @@
         <property id="ShowDate" type="boolean">true</property>
         <property id="TimeFormat" type="number">0</property>
         <property id="StormglassApiKey" type="string"></property>
+        <property id="EnableKPay" type="boolean">false</property>
     </properties>
 </resources>

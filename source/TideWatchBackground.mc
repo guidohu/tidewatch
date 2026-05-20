@@ -27,11 +27,17 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Tide Watch background task started successfully");
     }
 
-    function exitBackground(data) as Void {
+    /**
+     * Exits the background task, passing the success status.
+     * If running under the KiezelPay delegate, invokes the KPay callback.
+     * Otherwise, exits directly using Background.exit.
+     * @param success A Boolean indicating whether the sync was successful.
+     */
+    function exitBackground(success as Boolean) as Void {
         if (mKpayCallback != null) {
-            mKpayCallback.invoke(data);
+            mKpayCallback.invoke(success);
         } else {
-            Background.exit(data);
+            Background.exit(success);
         }
     }
 
