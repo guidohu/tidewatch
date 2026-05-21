@@ -12,6 +12,11 @@ var kpay as KPay.Core?;
 (:background)
 class TideWatchApp extends Application.AppBase {
 
+    var mLastGpsLat;
+    var mLastGpsLon;
+    var mLastDatum;
+    var mLastApiKey;
+
     function initialize() {
         AppBase.initialize();
     }
@@ -65,9 +70,11 @@ class TideWatchApp extends Application.AppBase {
 
         if (!LocationUtils.isValidLatitude(gpsLat)) {
             Application.Properties.setValue("GpsLat", 0.0);
+            gpsLat = 0.0;
         }
         if (!LocationUtils.isValidLongitude(gpsLon)) {
             Application.Properties.setValue("GpsLon", 0.0);
+            gpsLon = 0.0;
         }
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
@@ -80,7 +87,24 @@ class TideWatchApp extends Application.AppBase {
             kpay = null;
         }
 
-        TideWatchSettingsMenu.triggerImmediateSync(true);
+        var curDatum = Application.Properties.getValue("TideDatum");
+        var curApiKey = Application.Properties.getValue("StormglassApiKey");
+
+        var needsSync = false;
+        if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
+           (curApiKey != null && !curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey))) {
+            needsSync = true;
+        }
+
+        mLastGpsLat = gpsLat;
+        mLastGpsLon = gpsLon;
+        mLastDatum = curDatum;
+        mLastApiKey = curApiKey;
+
+        if (needsSync) {
+            TideWatchSettingsMenu.triggerImmediateSync(true);
+        }
+        
         WatchUi.requestUpdate();
     }
 
@@ -89,6 +113,11 @@ class TideWatchApp extends Application.AppBase {
         Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
 
         migrateSettings();
+
+        mLastGpsLat = Application.Properties.getValue("GpsLat");
+        mLastGpsLon = Application.Properties.getValue("GpsLon");
+        mLastDatum = Application.Properties.getValue("TideDatum");
+        mLastApiKey = Application.Properties.getValue("StormglassApiKey");
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
         if (enableKPayVal != null && enableKPayVal as Boolean == true) {

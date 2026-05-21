@@ -20,10 +20,9 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastLazyDataUpdate as Number = 0;
     var mLastSettingsHash as Number = 0;
     var mLastDataUpdatedAt as Number = 0;
+    var mLastSyncAttemptAt as Number = 0;
 
     var mBattery as Float = 0.0;
-    var mDateStr as String = "";
-    var mDowStr as String = "";
 
     var mCurrentHeight as Float = 0.0;
     var mIsRising as Boolean = false;
@@ -85,9 +84,9 @@ class TideWatchView extends WatchUi.WatchFace {
             ((tideColorIdx == null ? 0 : tideColorIdx as Number) << 4) +
             ((graphColorIdx == null ? 0 : graphColorIdx as Number) << 8) +
             ((baseColorIdx == null ? 0 : baseColorIdx as Number) << 12) +
-            ((showSwellGraph ? 1 : 0) << 16) +
-            ((showSwellSummary ? 1 : 0) << 17) +
-            ((showDate ? 1 : 0) << 18) +
+            ((showSwellGraph == true ? 1 : 0) << 16) +
+            ((showSwellSummary == true ? 1 : 0) << 17) +
+            ((showDate == true ? 1 : 0) << 18) +
             ((use24Hour ? 1 : 0) << 19);
 
         var dataUpdatedAt = Application.Storage.getValue("dataUpdatedAt") as Number?;
@@ -114,11 +113,6 @@ class TideWatchView extends WatchUi.WatchFace {
         // --- Continuous UI Calculations (Every Frame) ---
         var stats = System.getSystemStats();
         mBattery = stats.battery;
-
-        var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
-        mDateStr = todayMed.day.format("%d") + " " + todayMed.month;
-        mDowStr = todayLong.day_of_week;
 
         mCurrentHeight = 0.0;
         mIsRising = false;
@@ -300,49 +294,36 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        // If coordinates are missing, empty, or both 0.0, try to get them from the activity info
+        // If coordinates are missing, empty, or both 0.0, they are not set.
         var isGpsNotSet = (gpsLat == null || gpsLon == null);
         if (!isGpsNotSet) {
-            if (gpsLat instanceof String) {
-                isGpsNotSet = gpsLat.equals("") || gpsLon.equals("");
+            var latEmpty = (gpsLat instanceof String) ? gpsLat.equals("") : false;
+            var lonEmpty = (gpsLon instanceof String) ? gpsLon.equals("") : false;
+            
+            if (latEmpty || lonEmpty) {
+                isGpsNotSet = true;
             } else {
-                isGpsNotSet = (gpsLat.toFloat() == 0.0 && gpsLon.toFloat() == 0.0);
-            }
-        }
-
-        if (isGpsNotSet) {
-            var info = Activity.getActivityInfo();
-            if (info != null && info.currentLocation != null) {
-                var latLon = info.currentLocation.toDegrees();
-                var lat = latLon[0].toFloat();
-                var lon = latLon[1].toFloat();
+                var latF = (gpsLat instanceof Float || gpsLat instanceof Number || gpsLat instanceof String) ? gpsLat.toFloat() : 0.0;
+                var lonF = (gpsLon instanceof Float || gpsLon instanceof Number || gpsLon instanceof String) ? gpsLon.toFloat() : 0.0;
                 
-                // Only use if not 0,0 from activity info either
-                if (lat != 0.0 || lon != 0.0) {
-                    Application.Properties.setValue("GpsLat", lat);
-                    Application.Properties.setValue("GpsLon", lon);
-                    Application.Storage.deleteValue("spotName");
-                    
-                    gpsLat = lat;
-                    gpsLon = lon;
-                    isGpsNotSet = false;
-                    
-                    scheduleNextBackgroundEvent(null);
-                }
+                isGpsNotSet = (latF == 0.0 && lonF == 0.0);
             }
         }
 
         if (isGpsNotSet) {
+             if (showDate) {
+                 var dateStr = getDay() + ", " + getDate();
+                 drawCenteredText(dc, height * 0.38, Graphics.FONT_XTINY, dateStr, baseColor);
+             }
+
              var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
-             msg += "\nLast sync: ";
              if (mLastDataUpdatedAt > 0) {
+                 msg += "\nLast sync: ";
                  var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
                  var hourAmPm = formatHourAmPm(info.hour, use24Hour, false);
                  msg += hourAmPm[0].format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + hourAmPm[1];
-             } else {
-                 msg += "pending";
              }
-             drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, msg, baseColor);
+             drawCenteredText(dc, height * 0.55, Graphics.FONT_XTINY, msg, baseColor);
              return;
         }
 
@@ -376,8 +357,8 @@ class TideWatchView extends WatchUi.WatchFace {
 
         if (showDate) {
             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(startX - 4 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, mDateStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, mDowStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX - 4 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, getDate(), Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, getDay(), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
         if (mNextExtremaStr != null) {
@@ -492,7 +473,10 @@ class TideWatchView extends WatchUi.WatchFace {
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
         if (isStale && System.getDeviceSettings().phoneConnected && mSyncError != DataKeys.ERROR_QUOTA_EXCEEDED) {
-            scheduleNextBackgroundEvent(null);
+            if (now - mLastSyncAttemptAt > 300) {
+                mLastSyncAttemptAt = now;
+                scheduleNextBackgroundEvent(null);
+            }
         }
 
         if (showSyncError) {
@@ -620,6 +604,16 @@ class TideWatchView extends WatchUi.WatchFace {
             }
         }
         return [hour, amPm];
+    }
+
+    function getDate() as String {
+        var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
+        return todayMed.day.format("%d") + " " + todayMed.month;
+    }
+
+    function getDay() as String {
+        var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
+        return todayLong.day_of_week;
     }
 
     function drawCenteredText(dc as Dc, y as Lang.Numeric, font, text as String, color as Number) as Void {

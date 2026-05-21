@@ -228,7 +228,7 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         } else if (id.equals("BaseColor") || id.equals("TideColor") || id.equals("GraphColor")) {
             WatchUi.pushView(new ColorMenu(id, item), new PropertyMenuDelegate(id, item, false), WatchUi.SLIDE_LEFT);
         } else if (id.equals("TideUnits") || id.equals("SwellUnits")) {
-            WatchUi.pushView(new UnitMenu(id, item), new PropertyMenuDelegate(id, item, true), WatchUi.SLIDE_LEFT);
+            WatchUi.pushView(new UnitMenu(id, item), new PropertyMenuDelegate(id, item, false), WatchUi.SLIDE_LEFT);
         } else if (id.equals("ShowSwellSummary")) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
             TideWatchSettingsMenu.triggerImmediateSync(false);
