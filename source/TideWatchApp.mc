@@ -79,12 +79,23 @@ class TideWatchApp extends Application.AppBase {
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
         var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
+        var kpayChanged = false;
         if (enableKPay) {
-            if (kpay == null) {
-                kpay = new KPay.Core(getKPayConfig());
+            var kpayInstance = kpay;
+            if (kpayInstance == null) {
+                kpayInstance = new KPay.Core(getKPayConfig());
+                kpay = kpayInstance;
+                kpayChanged = true;
+            }
+            System.println("KiezelPay settings changed - isLicensed: " + kpayInstance.isLicensed());
+            if (!kpayInstance.isLicensed()) {
+                kpayInstance.startPurchase();
             }
         } else {
-            kpay = null;
+            if (kpay != null) {
+                kpay = null;
+                kpayChanged = true;
+            }
         }
 
         var curDatum = Application.Properties.getValue("TideDatum");
@@ -92,7 +103,7 @@ class TideWatchApp extends Application.AppBase {
 
         var needsSync = false;
         if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
-           (curApiKey != null && !curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey))) {
+           (curApiKey != null && !curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
             needsSync = true;
         }
 
@@ -121,7 +132,12 @@ class TideWatchApp extends Application.AppBase {
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
         if (enableKPayVal != null && enableKPayVal as Boolean == true) {
-            kpay = new KPay.Core(getKPayConfig());
+            var kpayInstance = new KPay.Core(getKPayConfig());
+            kpay = kpayInstance;
+            System.println("KiezelPay startup - isLicensed: " + kpayInstance.isLicensed());
+            if (!kpayInstance.isLicensed()) {
+                kpayInstance.startPurchase();
+            }
         }
 
         if (System has :ServiceDelegate) {
@@ -152,6 +168,13 @@ class TideWatchApp extends Application.AppBase {
         if (kpay != null && data instanceof Dictionary) {
             // Let KPay process its own data and update its internal state.
             kpay.onBackgroundData(data);
+
+            var event = data.get("kpay_event");
+            if (event instanceof Dictionary) {
+                var kpayStatus = event.get("status");
+                System.println("KiezelPay background event status: " + kpayStatus);
+            }
+            System.println("KiezelPay isLicensed after sync: " + kpay.isLicensed());
 
             // Extract the actual response from our background task.
             var response = (data as Dictionary)[(kpay as KPay.Core).extraResponseKey];

@@ -178,7 +178,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         var spotName = null;
         var success = false;
 
-        if (responseCode == 200 && data != null) {
+        if (responseCode == 200 && data != null && data instanceof Dictionary) {
             var locality = data.get("locality");
             var city = data.get("city");
             if (locality != null && locality instanceof String && !locality.equals("")) {
@@ -253,41 +253,43 @@ class TideWatchBackground extends System.ServiceDelegate {
         logMemoryUsage();
         if (handleQuotaError(responseCode)) { return; }
 
-        if (responseCode == 200 && data != null && data.hasKey("data")) {
-            var pts = data.get("data") as Array;
-            var waveResults = new Array<Array<Number?>>[pts.size()];
-            
-            for (var i = 0; i < pts.size(); i++) {
-                var pt = pts[i] as Dictionary;
-
+        if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
+            var pts = data.get("data");
+            if (pts instanceof Array) {
+                var waveResults = new Array<Array<Number?>>[pts.size()];
                 
-                var wPoint = new Array<Number?>[9];
+                for (var i = 0; i < pts.size(); i++) {
+                    var pt = pts[i];
+                    if (pt instanceof Dictionary) {
+                        var wPoint = new Array<Number?>[9];
+                        
+                        // Primary Swell
+                        var h = pt.get("h1");
+                        var p = pt.get("p1");
+                        var d = pt.get("d1");
+                        if (h != null) { wPoint[0] = (parseFloatSafe(h) * 100.0).toNumber(); }
+                        if (p != null) { wPoint[1] = parseNumberSafe(p); }
+                        if (d != null) { wPoint[2] = parseNumberSafe(d); }
+
+                        // Secondary Swell
+                        var h2 = pt.get("h2");
+                        var p2 = pt.get("p2");
+                        var d2 = pt.get("d2");
+                        if (h2 != null) { wPoint[3] = (parseFloatSafe(h2) * 100.0).toNumber(); }
+                        if (p2 != null) { wPoint[4] = parseNumberSafe(p2); }
+                        if (d2 != null) { wPoint[5] = parseNumberSafe(d2); }
+
+                        waveResults[i] = wPoint;
+                    }
+                }
                 
-                // Primary Swell
-                var h = pt.get("h1");
-                var p = pt.get("p1");
-                var d = pt.get("d1");
-                if (h != null) { wPoint[0] = (parseFloatSafe(h) * 100.0).toNumber(); }
-                if (p != null) { wPoint[1] = parseNumberSafe(p); }
-                if (d != null) { wPoint[2] = parseNumberSafe(d); }
-
-                // Secondary Swell
-                var h2 = pt.get("h2");
-                var p2 = pt.get("p2");
-                var d2 = pt.get("d2");
-                if (h2 != null) { wPoint[3] = (parseFloatSafe(h2) * 100.0).toNumber(); }
-                if (p2 != null) { wPoint[4] = parseNumberSafe(p2); }
-                if (d2 != null) { wPoint[5] = parseNumberSafe(d2); }
-
-                waveResults[i] = wPoint;
+                Application.Storage.setValue("waveData", waveResults);
+                Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
+                Application.Storage.setValue("weatherUpdatedAt", Time.now().value());
+                mDataUpdatedThisRun = true;
+                waveResults = null;
+                data = null;
             }
-            
-            Application.Storage.setValue("waveData", waveResults);
-            Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
-            Application.Storage.setValue("weatherUpdatedAt", Time.now().value());
-            mDataUpdatedThisRun = true;
-            waveResults = null;
-            data = null;
         }
         
         // If we failed weather (but not quota), still try tides
@@ -322,41 +324,48 @@ class TideWatchBackground extends System.ServiceDelegate {
         logMemoryUsage();
         if (handleQuotaError(responseCode)) { return; }
 
-        if (responseCode == 200 && data != null && data.hasKey("data")) {
-            var pts = data.get("data") as Array;
-            var gridHeights = new Array<Number>[pts.size()];
-            var gridTimes = new Array<Number>[pts.size()];
-            
-            for (var i = 0; i < pts.size(); i++) {
-                var point = pts[i] as Dictionary;
-                gridTimes[i] = point.get("ts") as Number;
-                var h = point.get("h");
-                if (h != null) {
-                    gridHeights[i] = (parseFloatSafe(h) * 100.0).toNumber();
-                } else {
-                    gridHeights[i] = 0;
-                }
-            }
-
-            if (gridTimes.size() > 0) {
-                Application.Storage.setValue("tideTimes", gridTimes);
-                Application.Storage.setValue("tideData", gridHeights);
-                Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
-                Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
-                mDataUpdatedThisRun = true;
+        if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
+            var pts = data.get("data");
+            if (pts instanceof Array) {
+                var gridHeights = [];
+                var gridTimes = [];
                 
-                gridTimes = null;
-                gridHeights = null;
-                data = null;
-                makeTideExtremesRequest();
-                return;
-            } else {
-                gridTimes = null;
-                gridHeights = null;
-                data = null;
-                saveSyncError(DataKeys.ERROR_NO_DATA);
-                exitBackground(false);
-                return;
+                for (var i = 0; i < pts.size(); i++) {
+                    var point = pts[i];
+                    if (point instanceof Dictionary) {
+                        var ts = point.get("ts");
+                        if (ts != null) {
+                            gridTimes.add(parseNumberSafe(ts));
+                            var h = point.get("h");
+                            if (h != null) {
+                                gridHeights.add((parseFloatSafe(h) * 100.0).toNumber());
+                            } else {
+                                gridHeights.add(0);
+                            }
+                        }
+                    }
+                }
+
+                if (gridTimes.size() > 0) {
+                    Application.Storage.setValue("tideTimes", gridTimes);
+                    Application.Storage.setValue("tideData", gridHeights);
+                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
+                    Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
+                    mDataUpdatedThisRun = true;
+                    
+                    gridTimes = null;
+                    gridHeights = null;
+                    data = null;
+                    makeTideExtremesRequest();
+                    return;
+                } else {
+                    gridTimes = null;
+                    gridHeights = null;
+                    data = null;
+                    saveSyncError(DataKeys.ERROR_NO_DATA);
+                    exitBackground(false);
+                    return;
+                }
             }
         }
         
@@ -397,30 +406,34 @@ class TideWatchBackground extends System.ServiceDelegate {
             return;
         }
 
-        if (responseCode == 200 && data != null && data.hasKey("data")) {
-            var pts = data.get("data") as Array;
-            var extrema = [];
-            
-            for (var i = 0; i < pts.size(); i++) {
-                var point = pts[i] as Dictionary;
-                var typeStr = point.get("t");
-                if (typeStr != null && (typeStr.equals("high") || typeStr.equals("low"))) {
-                    var typeCode = typeStr.equals("high") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
-                    var ts = point.get("ts");
-                    var hVal = point.get("h");
-                    if (ts != null && hVal != null) {
-                        extrema.add([ts, (parseFloatSafe(hVal) * 100.0).toNumber(), typeCode]);
+        if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
+            var pts = data.get("data");
+            if (pts instanceof Array) {
+                var extrema = [];
+                
+                for (var i = 0; i < pts.size(); i++) {
+                    var point = pts[i];
+                    if (point instanceof Dictionary) {
+                        var typeStr = point.get("t");
+                        if (typeStr != null && typeStr instanceof String && (typeStr.equals("high") || typeStr.equals("low"))) {
+                            var typeCode = typeStr.equals("high") ? DataKeys.TIDE_TYPE_HIGH : DataKeys.TIDE_TYPE_LOW;
+                            var ts = point.get("ts");
+                            var hVal = point.get("h");
+                            if (ts != null && hVal != null) {
+                                extrema.add([parseNumberSafe(ts), (parseFloatSafe(hVal) * 100.0).toNumber(), typeCode]);
+                            }
+                        }
                     }
                 }
-            }
 
-            Application.Storage.setValue("tideExtrema", extrema);
-            Application.Storage.setValue("tideExtremesUpdatedAt", Time.now().value());
-            mDataUpdatedThisRun = true;
-            
-            // Clean exit, successful sync pipeline
-            finalizeSync();
-            return;
+                Application.Storage.setValue("tideExtrema", extrema);
+                Application.Storage.setValue("tideExtremesUpdatedAt", Time.now().value());
+                mDataUpdatedThisRun = true;
+                
+                // Clean exit, successful sync pipeline
+                finalizeSync();
+                return;
+            }
         }
         
         saveSyncError(responseCode);
