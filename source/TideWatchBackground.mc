@@ -28,10 +28,9 @@ class TideWatchBackground extends System.ServiceDelegate {
     }
 
     /**
-     * Exits the background task, passing the success status.
-     * If running under the KiezelPay delegate, invokes the KPay callback.
-     * Otherwise, exits directly using Background.exit.
-     * @param success A Boolean indicating whether the sync was successful.
+     * Exits the background task, returning the sync success status.
+     * Invokes the KPay callback if running under KiezelPay temporal delegate; otherwise exits directly.
+     * @param success Boolean indicating whether background operations completed successfully.
      */
     function exitBackground(success as Boolean) as Void {
         if (mKpayCallback != null) {
@@ -41,15 +40,26 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
     }
 
+    /**
+     * Logs current memory stats to console logs.
+     */
     function logMemoryUsage() {
         var stats = System.getSystemStats();
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
     }
 
+    /**
+     * Retrieves the stored App ID.
+     * @return Stored App ID string, or null if not found.
+     */
     function getAppId() as String? {
         return Application.Storage.getValue("AppId") as String?;
     }
 
+    /**
+     * Main background execution callback triggered by temporal events.
+     * Sets target location, calculates start/end moments, and triggers the sync chain.
+     */
     function onTemporalEvent() as Void {
         var appId = getAppId();
         if (appId == null) {
@@ -63,14 +73,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
-        if (LocationUtils.isValidLatitude(gpsLat) && LocationUtils.isValidLongitude(gpsLon)) {
-            // For 0.0/0.0 we assume that the coordinates have not been set and abort.
-            if (gpsLat.toFloat() == 0.0 && gpsLon.toFloat() == 0.0) {
-                System.println("Coordinates are 0.0, 0.0 (Not Set). Exit.");
-                exitBackground(false);
-                return;
-            }
-
+        if (LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
             mTargetLat = gpsLat.toFloat();
             mTargetLon = gpsLon.toFloat();
         } else {
@@ -104,6 +107,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         makeBigDataCloudRequest();
     }
 
+    /**
+     * Checks if the response code indicates API limit / quota issues.
+     * Logs the error and exits the background task on match.
+     * @param responseCode The HTTP status code of a web request.
+     * @return True if quota was exceeded; false otherwise.
+     */
     function handleQuotaError(responseCode as Number) as Boolean {
         if (responseCode == 402 || responseCode == 429) {
             System.println("API Quota Exceeded (402/429)!");
@@ -114,6 +123,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         return false;
     }
 
+    /**
+     * Helper to verify if cached data corresponding to a key is still within freshness bounds.
+     * @param key Storage lookup key.
+     * @param freshnessSec Permissible age limit in seconds.
+     * @return True if data exists and is younger than freshnessSec; false otherwise.
+     */
     function isFresh(key as String, freshnessSec as Number) as Boolean {
         var updatedAt = Application.Storage.getValue(key);
         if (updatedAt != null && updatedAt instanceof Number) {
@@ -122,6 +137,11 @@ class TideWatchBackground extends System.ServiceDelegate {
         return false;
     }
 
+    /**
+     * Builds HTTP header dictionaries and parameters for Garmin makeWebRequest.
+     * @param includeAuth True to attach the Stormglass API key authorization header.
+     * @return Request option configuration dictionary.
+     */
     function getRequestOptions(includeAuth as Boolean) as Dictionary {
         var headers = { "X-App-Id" => getAppId() };
         if (includeAuth && mApiKey != null && !mApiKey.equals("")) {
@@ -134,14 +154,28 @@ class TideWatchBackground extends System.ServiceDelegate {
         };
     }
 
+    /**
+     * Safely parses any numeric object to a Float.
+     * @param val The numeric object.
+     * @return Float representation of val.
+     */
     function parseFloatSafe(val as Object) as Float {
         return (val instanceof Number) ? (val as Number).toFloat() : val as Float;
     }
 
+    /**
+     * Safely parses any numeric object to a Number.
+     * @param val The numeric object.
+     * @return Number representation of val.
+     */
     function parseNumberSafe(val as Object) as Number {
         return (val instanceof Float) ? (val as Float).toNumber() : val as Number;
     }
 
+    /**
+     * Triggers completion of background synchronization.
+     * Updates timestamps, clears sync errors, and notifies the watch face via exitBackground.
+     */
     function finalizeSync() as Void {
         if (mDataUpdatedThisRun) {
             Application.Storage.setValue("dataUpdatedAt", Time.now().value());
@@ -150,6 +184,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         exitBackground(true);
     }
 
+    /**
+     * Executes the BigDataCloud reverse geocode request to fetch localized spot/locality names.
+     */
     function makeBigDataCloudRequest() as Void {
         if (isFresh("geocodeUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Geocoding data is fresh, skipping.");
@@ -172,6 +209,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         Communications.makeWebRequest(url, params, options, method(:onReceiveBigDataCloud));
     }
 
+    /**
+     * Callback for the reverse geocoding web request.
+     * Stores the resolved spot name or coordinates fallback, then proceeds to weather/tide fetching.
+     * @param responseCode HTTP status response code.
+     * @param data Parsed JSON response dictionary.
+     */
     function onReceiveBigDataCloud(responseCode as Number, data as Dictionary?) as Void {
         System.println("BigDataCloud response: " + responseCode);
         if (responseCode != 200) { System.println("BigDataCloud data: " + data); }
@@ -210,6 +253,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
     }
 
+    /**
+     * Executes the Stormglass Weather web request to fetch swell sizes, periods, and direction parameters.
+     */
     function makeStormglassWeatherRequest() as Void {
         if (isFresh("weatherUpdatedAt", Constants.SLOW_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Weather data is fresh, skipping.");
@@ -231,6 +277,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         Communications.makeWebRequest(url, params, options, method(:onReceiveWeather));
     }
 
+    /**
+     * Callback for the Stormglass Weather web request.
+     * Decodes and stores primary/secondary swell heights and directions to storage.
+     * @param responseCode HTTP status response code.
+     * @param data Parsed JSON response dictionary.
+     */
     function onReceiveWeather(responseCode as Number, data as Dictionary?) as Void {
         System.println("Weather response: " + responseCode);
         if (responseCode != 200) { 
@@ -296,6 +348,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         makeTideTimelineRequest();
     }
 
+    /**
+     * Executes the Tide Timeline web request to fetch absolute tide level elevations.
+     */
     function makeTideTimelineRequest() as Void {
         if (isFresh("tideTimelineUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Tide timeline data is fresh, skipping.");
@@ -318,6 +373,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         Communications.makeWebRequest(url, params, options, method(:onReceiveTide));
     }
 
+    /**
+     * Callback for the Tide Timeline web request.
+     * Parses and registers grid elevation array data to application storage, then triggers extremes sync.
+     * @param responseCode HTTP status response code.
+     * @param data Parsed JSON response dictionary.
+     */
     function onReceiveTide(responseCode as Number, data as Dictionary?) as Void {
         System.println("Tide response: " + responseCode);
         if (responseCode != 200) { System.println("Tide data: " + data); }
@@ -373,6 +434,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         exitBackground(false);
     }
 
+    /**
+     * Executes the Tide Extremes web request to retrieve times/heights of upcoming high/low peaks.
+     */
     function makeTideExtremesRequest() as Void {
         if (isFresh("tideExtremesUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
             System.println("Tide extremes data is fresh, skipping.");
@@ -395,6 +459,12 @@ class TideWatchBackground extends System.ServiceDelegate {
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
 
+    /**
+     * Callback for the Tide Extremes web request.
+     * Decodes high/low metadata, updates storage, and completes the sync sequence.
+     * @param responseCode HTTP status response code.
+     * @param data Parsed JSON response dictionary.
+     */
     function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
         System.println("Extremes response: " + responseCode);
         if (responseCode != 200) { 
@@ -440,11 +510,18 @@ class TideWatchBackground extends System.ServiceDelegate {
         exitBackground(false);
     }
 
+    /**
+     * Saves the sync failure error code and timestamp to storage.
+     * @param code The numeric error code.
+     */
     function saveSyncError(code as Number) as Void {
         Application.Storage.setValue("syncError", code);
         Application.Storage.setValue("errorAt", Time.now().value());
     }
 
+    /**
+     * Removes saved sync failure codes and timestamps from storage.
+     */
     function clearSyncError() as Void {
         Application.Storage.deleteValue("syncError");
         Application.Storage.deleteValue("errorAt");

@@ -52,10 +52,34 @@ class TideWatchView extends WatchUi.WatchFace {
     var mErrorAt as Number? = null;
     var mWeatherError as Number? = null;
 
+    var mScreenWidth as Number = 0;
+    var mScreenHeight as Number = 0;
+    var mScale as Float = 1.0;
+
+    /**
+     * Constructor. Calls parent WatchFace constructor.
+     */
     function initialize() {
         WatchFace.initialize();
     }
 
+    /**
+     * Lifecycle method called when the layout of the watch face needs to be loaded.
+     * Pre-calculates and caches device screen boundaries and dynamic scaling ratios.
+     * @param dc The device context representing the watch screen.
+     */
+    function onLayout(dc as Dc) as Void {
+        mScreenWidth = dc.getWidth();
+        mScreenHeight = dc.getHeight();
+        mScale = mScreenWidth.toFloat() / SCREEN_WIDTH_REFERENCE;
+    }
+
+    /**
+     * Main rendering hook called on watch face update cycles.
+     * Manages KiezelPay dialog displays, triggers data state updates, and routes rendering commands
+     * to modular drawing sub-routines (clock, battery, tide, swell, graphs, footer).
+     * @param dc The device context.
+     */
     function onUpdate(dc as Dc) as Void {
         // Payment Dialog / Licensing Check
         if (kpay != null) {
@@ -90,6 +114,110 @@ class TideWatchView extends WatchUi.WatchFace {
         var timeFormatVal = Application.Properties.getValue("TimeFormat");
         var use24Hour = (timeFormatVal == null || timeFormatVal == DataKeys.TIME_FORMAT_24_H);
 
+        // Fallback size setup in case onLayout wasn't triggered
+        if (mScreenWidth == 0) {
+            onLayout(dc);
+        }
+
+        updateCacheAndCalculations(now, targetTideUnit, targetSwellUnit, use24Hour);
+
+        var tideColor = getColorFromIndex(tideColorIdx != null ? tideColorIdx as Number : 0);
+        var graphColor = getColorFromIndex(graphColorIdx != null ? graphColorIdx as Number : 0);
+        var baseColor = getColorFromIndex(baseColorIdx != null ? baseColorIdx as Number : 4);
+
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
+        dc.clear();
+
+        // 1. Draw Time/Battery (always rendered with current time)
+        drawClock(dc, baseColor, use24Hour);
+        drawBattery(dc, baseColor);
+
+        // 2. Error Check
+        var apiKey = Application.Properties.getValue("StormglassApiKey");
+        var hasApiKey = (apiKey != null && apiKey instanceof String && !apiKey.equals(""));
+
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        if (!LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
+             if (showDate) {
+                 drawDateCentered(dc, baseColor);
+             }
+
+             var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
+             if (mLastDataUpdatedAt > 0) {
+                 msg += "\nLast sync: ";
+                 var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
+                 var hourAmPm = formatHourAmPm(info.hour, use24Hour, false);
+                 msg += hourAmPm[0].format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + hourAmPm[1];
+             }
+             drawCenteredText(dc, mScreenHeight * 0.55, Graphics.FONT_XTINY, msg, baseColor);
+             return;
+        }
+
+        if (mcTideData == null || mcTideTimes == null) {
+            var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
+            if (mSyncError != null) {
+                if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
+                    msg = "API Limit Reached";
+                } else if (mSyncError == DataKeys.ERROR_NO_DATA) {
+                    msg = "no tide data available";
+                } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
+                    msg = "no connection";
+                } else {
+                    msg = "sync error";
+                }
+            }
+            var errColor = mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY;
+            drawCenteredText(dc, mScreenHeight / 2, Graphics.FONT_XTINY, msg, errColor);
+            return;
+        }
+
+        // Draw Current Tide Height and Date horizontally relative to each other
+        drawTideAndDate(dc, tideColor, baseColor, showDate);
+
+        if (mNextExtremaStr != null) {
+            drawCenteredText(dc, mScreenHeight * 0.67, Graphics.FONT_XTINY, mNextExtremaStr, baseColor);
+        }
+
+        // Swell Section
+        if (showSwellSummary) {
+            drawSwellData(dc, baseColor, hasApiKey);
+        }
+
+        // Graph Section
+        drawGraphs(dc, graphColor, baseColor, showSwellGraph, now);
+
+        // Spot Name or Error
+        var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
+        if (isStale && System.getDeviceSettings().phoneConnected && mSyncError != DataKeys.ERROR_QUOTA_EXCEEDED) {
+            if (now - mLastSyncAttemptAt > 300) {
+                mLastSyncAttemptAt = now;
+                scheduleNextBackgroundEvent(null);
+            }
+        }
+
+        drawFooter(dc, baseColor, now);
+    }
+
+    /**
+     * Lazy updates storage values, extracts wave/tide data array limits, and processes extrema heights.
+     * Calculates graphs min/max bounds and current tide levels.
+     * @param now Current epoch timestamp.
+     * @param targetTideUnit Unit system for tides (feet vs meters).
+     * @param targetSwellUnit Unit system for swells (feet vs meters).
+     * @param use24Hour Boolean indicating whether to format hours in 24h style.
+     */
+    function updateCacheAndCalculations(now as Number, targetTideUnit as Number, targetSwellUnit as Number, use24Hour as Boolean) as Void {
+        var tideUnits = Application.Properties.getValue("TideUnits");
+        var swellUnits = Application.Properties.getValue("SwellUnits");
+        var tideColorIdx = Application.Properties.getValue("TideColor");
+        var graphColorIdx = Application.Properties.getValue("GraphColor");
+        var baseColorIdx = Application.Properties.getValue("BaseColor");
+        var showSwellGraph = Application.Properties.getValue("ShowSwellGraph");
+        var showSwellSummary = Application.Properties.getValue("ShowSwellSummary");
+        var showDate = Application.Properties.getValue("ShowDate");
+
         var currentHash = (tideUnits == null ? 0 : tideUnits as Number) +
             ((swellUnits == null ? 0 : swellUnits as Number) << 2) +
             ((tideColorIdx == null ? 0 : tideColorIdx as Number) << 4) +
@@ -121,7 +249,6 @@ class TideWatchView extends WatchUi.WatchFace {
             mWeatherError = Application.Storage.getValue("weatherError") as Number?;
         }
 
-        // --- Continuous UI Calculations (Every Frame) ---
         var stats = System.getSystemStats();
         mBattery = stats.battery;
 
@@ -285,20 +412,59 @@ class TideWatchView extends WatchUi.WatchFace {
             if (mMinSwellH == 9999.0) { mMinSwellH = 0.0; mMaxSwellH = 1.0; }
             if (mMaxSwellH == mMinSwellH) { mMaxSwellH = mMinSwellH + 1.0; }
         }
+    }
 
+    /**
+     * Renders battery percentage number and status layout outline.
+     * @param dc The device context.
+     * @param baseColor Numeric color code for regular drawing.
+     */
+    function drawBattery(dc as Dc, baseColor as Number) as Void {
+        var x = mScreenWidth / 2;
+        var y = (mScreenHeight * 0.08).toNumber();
+        var width = (24 * mScale).toNumber();
+        var height = (12 * mScale).toNumber();
+        var tipWidth = (2 * mScale).toNumber();
+        var tipHeight = (6 * mScale).toNumber();
+        var margin = (2 * mScale).toNumber();
+        var fillWidth = ((width - margin * 2) * (mBattery / 100.0)).toNumber();
+        if (fillWidth < 0) {
+            fillWidth = 0;
+        }
 
-        var tideColor = getColorFromIndex(tideColorIdx != null ? tideColorIdx as Number : 0);
-        var graphColor = getColorFromIndex(graphColorIdx != null ? graphColorIdx as Number : 0);
-        var baseColor = getColorFromIndex(baseColorIdx != null ? baseColorIdx as Number : 4);
+        var color = baseColor;
+        if (mBattery < 10.0) {
+            color = Graphics.COLOR_RED;
+        } else if (mBattery < 20.0) {
+            color = Graphics.COLOR_YELLOW;
+        }
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        
+        // Draw percentage text
+        var percStr = mBattery.toNumber().toString() + "%";
+        dc.drawText(x - (2 * mScale).toNumber(), y, Graphics.FONT_XTINY, percStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        var width = dc.getWidth();
-        var height = dc.getHeight();
-        var scale = width / SCREEN_WIDTH_REFERENCE;
+        // Draw battery outline
+        var iconX = x + (2 * mScale).toNumber();
+        var iconY = y - height / 2;
+        
+        dc.drawRectangle(iconX, iconY, width, height);
+        dc.fillRectangle(iconX + width, iconY + (height - tipHeight) / 2, tipWidth, tipHeight);
 
-        // 1. Draw Time/Battery (always rendered with current time)
+        // Fill battery level
+        if (fillWidth > 0) {
+            dc.fillRectangle(iconX + margin, iconY + margin, fillWidth, height - margin * 2);
+        }
+    }
+
+    /**
+     * Renders current digital clock format and AM/PM labels relative to center.
+     * @param dc The device context.
+     * @param baseColor Color of base text.
+     * @param use24Hour True for 24-hour style format.
+     */
+    function drawClock(dc as Dc, baseColor as Number, use24Hour as Boolean) as Void {
         var clockTime = System.getClockTime();
         var hourAmPmVal = formatHourAmPm(clockTime.hour, use24Hour, true);
         var clockHour = hourAmPmVal[0];
@@ -306,144 +472,114 @@ class TideWatchView extends WatchUi.WatchFace {
         var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         
-        var timeY = height * 0.24;
+        var timeY = mScreenHeight * 0.24;
         if (clockAmPm.length() > 0) {
             var timeWidth = dc.getTextWidthInPixels(timeStr, Graphics.FONT_NUMBER_HOT);
             var amPmWidth = dc.getTextWidthInPixels(clockAmPm, Graphics.FONT_XTINY);
-            var gap = (2 * scale).toNumber();
+            var gap = (2 * mScale).toNumber();
             var totalW = timeWidth + gap + amPmWidth;
-            var startX = (width - totalW) / 2;
+            var startX = (mScreenWidth - totalW) / 2;
             
             dc.drawText(startX, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + timeWidth + gap, timeY - (8 * scale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX + timeWidth + gap, timeY - (8 * mScale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
             drawCenteredText(dc, timeY, Graphics.FONT_NUMBER_HOT, timeStr, baseColor);
         }
+    }
 
-        drawBattery(dc, width / 2, (height * 0.08).toNumber(), mBattery, baseColor);
+    /**
+     * Renders a centered date and day string. Used as fallback when GPS is not active.
+     * @param dc The device context.
+     * @param baseColor Numeric color code.
+     */
+    function drawDateCentered(dc as Dc, baseColor as Number) as Void {
+        var dateStr = getDay() + ", " + getDate();
+        drawCenteredText(dc, mScreenHeight * 0.38, Graphics.FONT_XTINY, dateStr, baseColor);
+    }
 
-        // 2. Error Check
-        var apiKey = Application.Properties.getValue("StormglassApiKey");
-        var hasApiKey = (apiKey != null && apiKey instanceof String && !apiKey.equals(""));
-
-        var gpsLat = Application.Properties.getValue("GpsLat");
-        var gpsLon = Application.Properties.getValue("GpsLon");
-
-        // If coordinates are missing, empty, or both 0.0, they are not set.
-        var isGpsNotSet = (gpsLat == null || gpsLon == null);
-        if (!isGpsNotSet) {
-            var latEmpty = (gpsLat instanceof String) ? gpsLat.equals("") : false;
-            var lonEmpty = (gpsLon instanceof String) ? gpsLon.equals("") : false;
-            
-            if (latEmpty || lonEmpty) {
-                isGpsNotSet = true;
-            } else {
-                var latF = (gpsLat instanceof Float || gpsLat instanceof Number || gpsLat instanceof String) ? gpsLat.toFloat() : 0.0;
-                var lonF = (gpsLon instanceof Float || gpsLon instanceof Number || gpsLon instanceof String) ? gpsLon.toFloat() : 0.0;
-                
-                isGpsNotSet = (latF == 0.0 && lonF == 0.0);
-            }
-        }
-
-        if (isGpsNotSet) {
-             if (showDate) {
-                 var dateStr = getDay() + ", " + getDate();
-                 drawCenteredText(dc, height * 0.38, Graphics.FONT_XTINY, dateStr, baseColor);
-             }
-
-             var msg = WatchUi.loadResource(Rez.Strings.NoSpotSelected) as String;
-             if (mLastDataUpdatedAt > 0) {
-                 msg += "\nLast sync: ";
-                 var info = Gregorian.info(new Time.Moment(mLastDataUpdatedAt), Time.FORMAT_SHORT);
-                 var hourAmPm = formatHourAmPm(info.hour, use24Hour, false);
-                 msg += hourAmPm[0].format(use24Hour ? "%02d" : "%d") + ":" + info.min.format("%02d") + hourAmPm[1];
-             }
-             drawCenteredText(dc, height * 0.55, Graphics.FONT_XTINY, msg, baseColor);
-             return;
-        }
-
-        if (mcTideData == null || mcTideTimes == null) {
-            var msg = "Waiting for sync...\nFirst sync can take\nup to 15 minutes.";
-            if (mSyncError != null) {
-                if (mSyncError == DataKeys.ERROR_QUOTA_EXCEEDED) {
-                    msg = "API Limit Reached";
-                } else if (mSyncError == DataKeys.ERROR_NO_DATA) {
-                    msg = "no tide data available";
-                } else if (mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
-                    msg = "no connection";
-                } else {
-                    msg = "sync error";
-                }
-            }
-            var errColor = mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY;
-            drawCenteredText(dc, height / 2, Graphics.FONT_XTINY, msg, errColor);
-            return;
-        }
-
-        // Draw Current Tide Height
+    /**
+     * Renders current tide elevation value and rising/falling indicator arrow horizontally
+     * aligned alongside day and date text.
+     * @param dc The device context.
+     * @param tideColor Color for drawing tide numeric indicators.
+     * @param baseColor Color of base text.
+     * @param showDate True to render the adjacent date and day strings.
+     */
+    function drawTideAndDate(dc as Dc, tideColor as Number, baseColor as Number, showDate as Boolean) as Void {
         var numWidth = dc.getTextWidthInPixels(mTideNumStr, Graphics.FONT_NUMBER_MEDIUM);
         var mWidth = dc.getTextWidthInPixels(mDispUnit, Graphics.FONT_MEDIUM);
-        var startX = (width - (numWidth + mWidth)) / 2;
+        var startX = (mScreenWidth - (numWidth + mWidth)) / 2;
 
         dc.setColor(tideColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(startX, height * 0.44, Graphics.FONT_NUMBER_MEDIUM, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(startX + numWidth, height * 0.44, Graphics.FONT_MEDIUM, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        drawArrow(dc, (startX + numWidth + mWidth + 15 * scale).toNumber(), (height * 0.44).toNumber(), mIsRising);
+        dc.drawText(startX, mScreenHeight * 0.44, Graphics.FONT_NUMBER_MEDIUM, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX + numWidth, mScreenHeight * 0.44, Graphics.FONT_MEDIUM, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        drawArrow(dc, (startX + numWidth + mWidth + 15 * mScale).toNumber(), (mScreenHeight * 0.44).toNumber(), mIsRising);
 
         if (showDate) {
             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(startX - 4 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, getDate(), Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + numWidth + mWidth + 30 * scale, (height * 0.38) + 1, Graphics.FONT_XTINY, getDay(), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX - 4 * mScale, (mScreenHeight * 0.38) + 1, Graphics.FONT_XTINY, getDate(), Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX + numWidth + mWidth + 30 * mScale, (mScreenHeight * 0.38) + 1, Graphics.FONT_XTINY, getDay(), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
+    }
 
-        if (mNextExtremaStr != null) {
-            drawCenteredText(dc, height * 0.67, Graphics.FONT_XTINY, mNextExtremaStr, baseColor);
-        }
-
-        // Swell Section
-        if (showSwellSummary) {
-            if (!hasApiKey) {
-                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
-            } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
-                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
-            } else if (mWeatherError == DataKeys.ERROR_OTHER) {
-                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
-            } else if (mValidSwells.size() > 0) {
-                var totalSwellW = 0;
-                var arrowW = (10 * scale).toNumber();
-                var pad = (3 * scale).toNumber();
-                var sepW = dc.getTextWidthInPixels(" | ", Graphics.FONT_XTINY);
-                for (var i = 0; i < mValidSwells.size(); i++) {
-                    totalSwellW += arrowW + pad + dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
-                }
-                totalSwellW += (mValidSwells.size() - 1) * sepW;
-
-                var curX = (width - totalSwellW) / 2;
-                var curY = (height * 0.57).toNumber();
-                for (var i = 0; i < mValidSwells.size(); i++) {
-                    var sv = mValidSwells[i] as Array;
-                    drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
-                    curX += arrowW + pad;
-                    dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(curX, curY, Graphics.FONT_XTINY, mSwellTexts[i] as String, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                    curX += dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
-                    if (i < mValidSwells.size() - 1) {
-                        dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-                        dc.drawText(curX, curY, Graphics.FONT_XTINY, " | ", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-                        curX += sepW;
-                    }
-                }
-            } else {
-                drawCenteredText(dc, height * 0.58, Graphics.FONT_XTINY, "no swell data available", baseColor);
+    /**
+     * Renders current swell data summaries (primary & secondary height, periods, directions).
+     * @param dc The device context.
+     * @param baseColor Default color of text.
+     * @param hasApiKey True if a Stormglass API key is supplied.
+     */
+    function drawSwellData(dc as Dc, baseColor as Number, hasApiKey as Boolean) as Void {
+        if (!hasApiKey) {
+            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
+        } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
+            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
+        } else if (mWeatherError == DataKeys.ERROR_OTHER) {
+            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
+        } else if (mValidSwells.size() > 0) {
+            var totalSwellW = 0;
+            var arrowW = (10 * mScale).toNumber();
+            var pad = (3 * mScale).toNumber();
+            var sepW = dc.getTextWidthInPixels(" | ", Graphics.FONT_XTINY);
+            for (var i = 0; i < mValidSwells.size(); i++) {
+                totalSwellW += arrowW + pad + dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
             }
-        }
+            totalSwellW += (mValidSwells.size() - 1) * sepW;
 
-        // Graph Section
+            var curX = (mScreenWidth - totalSwellW) / 2;
+            var curY = (mScreenHeight * 0.57).toNumber();
+            for (var i = 0; i < mValidSwells.size(); i++) {
+                var sv = mValidSwells[i] as Array;
+                drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
+                curX += arrowW + pad;
+                dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(curX, curY, Graphics.FONT_XTINY, mSwellTexts[i] as String, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                curX += dc.getTextWidthInPixels(mSwellTexts[i] as String, Graphics.FONT_XTINY);
+                if (i < mValidSwells.size() - 1) {
+                    dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(curX, curY, Graphics.FONT_XTINY, " | ", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+                    curX += sepW;
+                }
+            }
+        } else {
+            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "no swell data available", baseColor);
+        }
+    }
+
+    /**
+     * Draws the main tide elevation curve and optionally overlays swell metrics.
+     * Places a red dot representing current time on the timeline grid.
+     * @param dc The device context.
+     * @param graphColor Color of tide line graph.
+     * @param baseColor Color of swell layers and helper layouts.
+     * @param showSwellGraph True if the swell graph layer is active.
+     * @param now Current epoch timestamp.
+     */
+    function drawGraphs(dc as Dc, graphColor as Number, baseColor as Number, showSwellGraph as Boolean, now as Number) as Void {
         if (mMaxH > mMinH) {
-            var graphY = height * 0.88;
-            var graphHeight = height * 0.18;
-            var graphMargin = width * 0.15;
-            var drawWidth = width - 2 * graphMargin;
+            var graphY = mScreenHeight * 0.88;
+            var graphHeight = mScreenHeight * 0.18;
+            var graphMargin = mScreenWidth * 0.15;
+            var drawWidth = mScreenWidth - 2 * graphMargin;
 
             // Swell Graph
             if (showSwellGraph && mcWaveData != null && mcWaveData instanceof Array) {
@@ -478,7 +614,7 @@ class TideWatchView extends WatchUi.WatchFace {
                         var wTs = tTimesArray[i] as Number;
                         var sx = graphMargin + drawWidth * (wTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
                         var sy = graphY - graphHeight * (h - mMinSwellH) / (mMaxSwellH - mMinSwellH);
-                        if (lastSX >= 0 && (sx >= -50 && sx <= width + 50)) {
+                        if (lastSX >= 0 && (sx >= -50 && sx <= mScreenWidth + 50)) {
                             dc.setColor(colors[s], Graphics.COLOR_TRANSPARENT);
                             dc.drawLine(lastSX, lastSY, sx.toNumber(), sy.toNumber());
                             if (s == 0) { dc.drawLine(lastSX, lastSY+1, sx.toNumber(), sy.toNumber()+1); dc.drawLine(lastSX, lastSY-1, sx.toNumber(), sy.toNumber()-1); }
@@ -501,7 +637,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     if (hVal != null) {
                         var hFloat = convertHeight(hVal as Number, mcTideUnitApi, DataKeys.UNIT_METER);
                         var y = graphY - graphHeight * (hFloat - mMinH) / (mMaxH - mMinH);
-                        if (lastX >= 0 && (x >= -50 && x <= width + 50)) {
+                        if (lastX >= 0 && (x >= -50 && x <= mScreenWidth + 50)) {
                             dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
                             dc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
                         }
@@ -514,23 +650,23 @@ class TideWatchView extends WatchUi.WatchFace {
 
             // Current Time Marker (using dynamic 'now' so marker moves!)
             var nowX = graphMargin + drawWidth * (now - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
-            if (nowX >= 0 && nowX <= width) {
+            if (nowX >= 0 && nowX <= mScreenWidth) {
                 dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
                 var markerY = graphY - graphHeight * (mCurrentHeight - mMinH) / (mMaxH - mMinH);
-                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * scale).toNumber());
+                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * mScale).toNumber());
             }
         }
+    }
 
-        // Spot Name or Error
+    /**
+     * Renders the spot name or sync errors at the bottom footer of the display.
+     * @param dc The device context.
+     * @param baseColor Numeric color code for standard drawing.
+     * @param now Current timestamp.
+     */
+    function drawFooter(dc as Dc, baseColor as Number, now as Number) as Void {
         var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
-
-        if (isStale && System.getDeviceSettings().phoneConnected && mSyncError != DataKeys.ERROR_QUOTA_EXCEEDED) {
-            if (now - mLastSyncAttemptAt > 300) {
-                mLastSyncAttemptAt = now;
-                scheduleNextBackgroundEvent(null);
-            }
-        }
 
         if (showSyncError) {
             var errMsg = "sync error";
@@ -540,19 +676,25 @@ class TideWatchView extends WatchUi.WatchFace {
             } else if (mSyncError != null && mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                 errMsg = "no connection";
             }
-            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, errMsg, errColor);
+            drawCenteredText(dc, mScreenHeight * 0.95, Graphics.FONT_XTINY, errMsg, errColor);
         } else if (mcSpotName != null) {
             var nameColor = baseColor;
             if (isStale || mSyncError != null) {
                 nameColor = Graphics.COLOR_YELLOW;
             }
-            drawCenteredText(dc, height * 0.95, Graphics.FONT_XTINY, mcSpotName as String, nameColor);
+            drawCenteredText(dc, mScreenHeight * 0.95, Graphics.FONT_XTINY, mcSpotName as String, nameColor);
         }
     }
 
+    /**
+     * Draws a simple up or down arrow representing rising or falling tide heights.
+     * @param dc The device context.
+     * @param x Centered horizontal coordinate.
+     * @param y Vertical center coordinate.
+     * @param isRising True for up (rising); false for down (falling).
+     */
     function drawArrow(dc as Dc, x as Number, y as Number, isRising as Boolean) as Void {
-        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
-        var sz = (8 * s).toNumber();
+        var sz = (8 * mScale).toNumber();
         var pts;
         
         if (isRising) {
@@ -563,10 +705,16 @@ class TideWatchView extends WatchUi.WatchFace {
             pts = [[x, y + sz], [x - sz, y - sz], [x + sz, y - sz]]; // Down Arrow
         }
         dc.fillPolygon(pts as Array<[Lang.Numeric, Lang.Numeric]>);
-    }
+     }
 
+    /**
+     * Draws an arrow polygon pointing in the direction the swell is moving.
+     * @param dc The device context.
+     * @param x Center coordinate.
+     * @param y Center coordinate.
+     * @param direction Degree angle representing swell heading direction.
+     */
     function drawSwellArrow(dc as Dc, x as Number, y as Number, direction as Float) as Void {
-        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
         var rad = (direction + 180.0) * Math.PI / 180.0;
         var cos = Math.cos(rad);
         var sin = Math.sin(rad);
@@ -574,11 +722,11 @@ class TideWatchView extends WatchUi.WatchFace {
         var xf = x.toFloat();
         var yf = y.toFloat();
         
-        var px = 0.0; var py = -5.0 * s;
+        var px = 0.0; var py = -5.0 * mScale;
         var p0x = xf + px*cos - py*sin; var p0y = yf + px*sin + py*cos;
-        px = -3.5 * s; py = 3.5 * s;
+        px = -3.5 * mScale; py = 3.5 * mScale;
         var p1x = xf + px*cos - py*sin; var p1y = yf + px*sin + py*cos;
-        px = 3.5 * s; py = 3.5 * s;
+        px = 3.5 * mScale; py = 3.5 * mScale;
         var p2x = xf + px*cos - py*sin; var p2y = yf + px*sin + py*cos;
         
         var pts = [
@@ -589,46 +737,11 @@ class TideWatchView extends WatchUi.WatchFace {
         dc.fillPolygon(pts as Array<[Lang.Numeric, Lang.Numeric]>);
     }
 
-    function drawBattery(dc as Dc, x as Number, y as Number, battery as Float, colorPrimary as Number) as Void {
-        var s = dc.getWidth() / SCREEN_WIDTH_REFERENCE;
-        var width = (24 * s).toNumber();
-        var height = (12 * s).toNumber();
-        var tipWidth = (2 * s).toNumber();
-        var tipHeight = (6 * s).toNumber();
-        var margin = (2 * s).toNumber();
-        var fillWidth = ((width - margin * 2) * (battery / 100.0)).toNumber();
-        if (fillWidth < 0) {
-            fillWidth = 0;
-        }
-
-        var color = colorPrimary;
-        if (battery < 10.0) {
-            color = Graphics.COLOR_RED;
-        } else if (battery < 20.0) {
-            color = Graphics.COLOR_YELLOW;
-        }
-
-        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-        
-        // Draw percentage text
-        var percStr = battery.toNumber().toString() + "%";
-        dc.drawText(x - (2 * s).toNumber(), y, Graphics.FONT_XTINY, percStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-
-        // Draw battery outline
-        var iconX = x + (2 * s).toNumber();
-        var iconY = y - height / 2;
-        
-        dc.drawRectangle(iconX, iconY, width, height);
-        dc.fillRectangle(iconX + width, iconY + (height - tipHeight) / 2, tipWidth, tipHeight);
-
-        // Fill battery level
-        if (fillWidth > 0) {
-            dc.fillRectangle(iconX + margin, iconY + margin, fillWidth, height - margin * 2);
-        }
-    }
-
-
-
+    /**
+     * Converts a setting index to a Garmin Graphics COLOR_* constant or custom hex value.
+     * @param idx The color property setting index.
+     * @return Color hex integer.
+     */
     function getColorFromIndex(idx as Number) as Number {
         if (idx == DataKeys.SETTING_COLOR_PINK) { return Graphics.COLOR_PINK; }
         if (idx == DataKeys.SETTING_COLOR_RED) { return Graphics.COLOR_RED; }
@@ -645,6 +758,13 @@ class TideWatchView extends WatchUi.WatchFace {
         return Graphics.COLOR_BLUE; // Default/0
     }
 
+    /**
+     * Formats hours for AM/PM layout or 24-hour style format.
+     * @param hour The hour value (0-23).
+     * @param use24Hour True for 24h format; false for 12h format.
+     * @param upperCase True to capitalize AM/PM suffix labels.
+     * @return Array containing [hour_number, am_pm_suffix_string].
+     */
     function formatHourAmPm(hour as Number, use24Hour as Boolean, upperCase as Boolean) as Array {
         var amPm = "";
         if (!use24Hour) {
@@ -659,21 +779,44 @@ class TideWatchView extends WatchUi.WatchFace {
         return [hour, amPm];
     }
 
+    /**
+     * Resolves the current formatted date string (e.g. "23 May").
+     * @return Formatted date string.
+     */
     function getDate() as String {
         var todayMed = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
         return todayMed.day.format("%d") + " " + todayMed.month;
     }
 
+    /**
+     * Resolves the current formatted weekday string (e.g. "Saturday").
+     * @return Active day-of-week string.
+     */
     function getDay() as String {
         var todayLong = Gregorian.info(Time.now(), Time.FORMAT_LONG);
         return todayLong.day_of_week;
     }
 
+    /**
+     * Utility method to draw centered text layouts using custom fonts and colors.
+     * @param dc The device context.
+     * @param y Vertical center offset.
+     * @param font The active Garmin font face.
+     * @param text String label to draw.
+     * @param color Graphics color to apply.
+     */
     function drawCenteredText(dc as Dc, y as Lang.Numeric, font, text as String, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(dc.getWidth() / 2, y, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(mScreenWidth / 2, y, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
+    /**
+     * Converts a raw rawValue elevation between meter/feet metrics using calibration ratios.
+     * @param rawValue The raw elevation value (multiplied by 100).
+     * @param apiUnit Source API unit code.
+     * @param targetUnit Output target unit code.
+     * @return Correctly calibrated float value.
+     */
     function convertHeight(rawValue as Number, apiUnit as Number?, targetUnit as Number) as Float {
         if (targetUnit != DataKeys.UNIT_METER && targetUnit != DataKeys.UNIT_FEET) {
             System.println("Invalid target unit: " + targetUnit);

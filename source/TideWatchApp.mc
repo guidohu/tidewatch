@@ -17,53 +17,120 @@ class TideWatchApp extends Application.AppBase {
     var mLastDatum;
     var mLastApiKey;
 
+    /**
+     * Constructor. Initializes the parent AppBase.
+     */
     function initialize() {
         AppBase.initialize();
     }
 
+    /**
+     * Lifecycle callback when the app stops.
+     * Stops the KiezelPay task/timers if active.
+     */
     function onStop(state as Dictionary?) as Void {
         if (kpay != null) {
             kpay.onStop();
         }
     }
 
+    /**
+     * Parses a generic coordinate value from an Object (e.g. String) to a Float.
+     * Validates that the parsed value falls between min and max bounds.
+     * @param val The coordinate value object to parse.
+     * @param min The minimum acceptable coordinate.
+     * @param max The maximum acceptable coordinate.
+     * @return The parsed coordinate float, or 0.0 if parsing or bounds check fails.
+     */
+    function parseCoordinate(val as Object?, min as Float, max as Float) as Float {
+        if (val instanceof String) {
+            try {
+                var f = val.toFloat();
+                if (f != null && f >= min && f <= max) {
+                    return f;
+                }
+            } catch (e) {
+                System.println("Failed to parse coordinate: " + e.getErrorMessage());
+            }
+        }
+        return 0.0;
+    }
+
+    /**
+     * Parses a latitude coordinate from an Object to a Float, validating range [-90, 90].
+     * @param val The latitude object to parse.
+     * @return The parsed latitude float, or 0.0 on failure.
+     */
+    function parseLatitude(val as Object?) as Float {
+        return parseCoordinate(val, -90.0, 90.0);
+    }
+
+    /**
+     * Parses a longitude coordinate from an Object to a Float, validating range [-180, 180].
+     * @param val The longitude object to parse.
+     * @return The parsed longitude float, or 0.0 on failure.
+     */
+    function parseLongitude(val as Object?) as Float {
+        return parseCoordinate(val, -180.0, 180.0);
+    }
+
+    /**
+     * Migrates settings stored as legacy Strings (e.g. from old Garmin settings)
+     * into proper Floats for latitude and longitude.
+     */
     function migrateSettings() as Void {
         var gpsLat = Application.Properties.getValue("GpsLat");
         if (gpsLat instanceof String) {
-            var latFloat = 0.0;
-            try {
-                var f = gpsLat.toFloat();
-                if (f != null && LocationUtils.isValidLatitude(f)) {
-                    latFloat = f.toFloat();
-                }
-            } catch (e) {
-                System.println("Failed to parse GpsLat: " + e.getErrorMessage());
-            }
-            Application.Properties.setValue("GpsLat", latFloat);
+            Application.Properties.setValue("GpsLat", parseLatitude(gpsLat));
             System.println("Migrated GpsLat from String to Float.");
         }
         
         var gpsLon = Application.Properties.getValue("GpsLon");
         if (gpsLon instanceof String) {
-            var lonFloat = 0.0;
-            try {
-                var f = gpsLon.toFloat();
-                if (f != null && LocationUtils.isValidLongitude(f)) {
-                    lonFloat = f.toFloat();
-                }
-            } catch (e) {
-                System.println("Failed to parse GpsLon: " + e.getErrorMessage());
-            }
-            Application.Properties.setValue("GpsLon", lonFloat);
+            Application.Properties.setValue("GpsLon", parseLongitude(gpsLon));
             System.println("Migrated GpsLon from String to Float.");
         }
     }
 
+    /**
+     * Prints current system memory stats to debug logs.
+     */
     function logMemoryUsage() {
         var stats = System.getSystemStats();
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
     }
 
+    /**
+     * Instantiates or destroys the KiezelPay Core controller based on settings.
+     * @param enableKPay If true, initializes and starts KiezelPay; otherwise, disables it.
+     * @return True if the KPay activation state changed.
+     */
+    function initializeKPay(enableKPay as Boolean) as Boolean {
+        var kpayChanged = false;
+        if (enableKPay) {
+            var kpayInstance = kpay;
+            if (kpayInstance == null) {
+                kpayInstance = new KPay.Core(getKPayConfig());
+                kpay = kpayInstance;
+                kpayChanged = true;
+            }
+            System.println("KiezelPay isLicensed: " + kpayInstance.isLicensed());
+            if (!kpayInstance.isLicensed()) {
+                kpayInstance.startPurchase();
+            }
+        } else {
+            if (kpay != null) {
+                kpay = null;
+                kpayChanged = true;
+            }
+        }
+        return kpayChanged;
+    }
+
+    /**
+     * Lifecycle callback triggered when user settings are changed in Connect IQ.
+     * Validates GPS location bounds, resets/initializes KPay, and checks if a background sync is needed.
+     */
     function onSettingsChanged() {
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
@@ -79,24 +146,7 @@ class TideWatchApp extends Application.AppBase {
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
         var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
-        var kpayChanged = false;
-        if (enableKPay) {
-            var kpayInstance = kpay;
-            if (kpayInstance == null) {
-                kpayInstance = new KPay.Core(getKPayConfig());
-                kpay = kpayInstance;
-                kpayChanged = true;
-            }
-            System.println("KiezelPay settings changed - isLicensed: " + kpayInstance.isLicensed());
-            if (!kpayInstance.isLicensed()) {
-                kpayInstance.startPurchase();
-            }
-        } else {
-            if (kpay != null) {
-                kpay = null;
-                kpayChanged = true;
-            }
-        }
+        var kpayChanged = initializeKPay(enableKPay);
 
         var curDatum = Application.Properties.getValue("TideDatum");
         var curApiKey = Application.Properties.getValue("StormglassApiKey");
@@ -119,6 +169,10 @@ class TideWatchApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
+    /**
+     * Initializer for the first view of the application.
+     * @return Array containing the main watch face view.
+     */
     function getInitialView() {
         // Store AppId for background service since Rez isn't accessible there
         Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
@@ -131,14 +185,8 @@ class TideWatchApp extends Application.AppBase {
         mLastApiKey = Application.Properties.getValue("StormglassApiKey");
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
-        if (enableKPayVal != null && enableKPayVal as Boolean == true) {
-            var kpayInstance = new KPay.Core(getKPayConfig());
-            kpay = kpayInstance;
-            System.println("KiezelPay startup - isLicensed: " + kpayInstance.isLicensed());
-            if (!kpayInstance.isLicensed()) {
-                kpayInstance.startPurchase();
-            }
-        }
+        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
+        initializeKPay(enableKPay);
 
         if (System has :ServiceDelegate) {
            scheduleNextBackgroundEvent(null);
@@ -204,6 +252,11 @@ class TideWatchApp extends Application.AppBase {
         }
     }
 
+    /**
+     * Gets the background service delegate instance to execute scheduled events.
+     * If KiezelPay is enabled, returns KPay's background service delegate wrapper.
+     * @return Array containing the ServiceDelegate.
+     */
     function getServiceDelegate() {
         System.println("TideWatch Background service: getServiceDelegate");
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
@@ -214,15 +267,28 @@ class TideWatchApp extends Application.AppBase {
         }
     }
 
+    /**
+     * Retrieves the settings menu views and delegates.
+     * @return Array containing the menu view and its input delegate.
+     */
     function getSettingsView() {
         return [ new TideWatchSettingsMenu(), new TideWatchSettingsMenuDelegate() ] as [WatchUi.Views, WatchUi.InputDelegates];
     }
 }
 
+/**
+ * Helper to get the active TideWatchApp instance.
+ * @return The active TideWatchApp application instance.
+ */
 function getApp() as TideWatchApp {
     return Application.getApp() as TideWatchApp;
 }
 
+/**
+ * Registers/schedules the next background temporal event.
+ * Ensures the event complies with Garmin's minimum 5-minute event duration rules.
+ * @param earliestTime The earliest Moment to run the event, or null to schedule immediately.
+ */
 function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
     if (Toybox has :Background) {
         try { 
