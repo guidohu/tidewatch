@@ -131,8 +131,8 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function isFresh(key as String, freshnessSec as Number) as Boolean {
         var updatedAt = Application.Storage.getValue(key);
-        if (updatedAt != null && updatedAt instanceof Number) {
-            return (Time.now().value() - (updatedAt as Number)) < freshnessSec;
+        if (updatedAt != null && (updatedAt instanceof Number || updatedAt instanceof Long)) {
+            return (Time.now().value().toNumber() - updatedAt.toNumber()) < freshnessSec;
         }
         return false;
     }
@@ -160,7 +160,18 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @return Float representation of val.
      */
     function parseFloatSafe(val as Object) as Float {
-        return (val instanceof Number) ? (val as Number).toFloat() : val as Float;
+        if (val instanceof Float) {
+            return val;
+        } else if (val instanceof Double) {
+            return val.toFloat();
+        } else if (val instanceof Number) {
+            return val.toFloat();
+        } else if (val instanceof Long) {
+            return val.toFloat();
+        } else if (val instanceof String) {
+            return val.toFloat();
+        }
+        return 0.0f;
     }
 
     /**
@@ -169,7 +180,18 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @return Number representation of val.
      */
     function parseNumberSafe(val as Object) as Number {
-        return (val instanceof Float) ? (val as Float).toNumber() : val as Number;
+        if (val instanceof Number) {
+            return val;
+        } else if (val instanceof Float) {
+            return val.toNumber();
+        } else if (val instanceof Double) {
+            return val.toNumber();
+        } else if (val instanceof Long) {
+            return val.toNumber();
+        } else if (val instanceof String) {
+            return val.toNumber();
+        }
+        return 0;
     }
 
     /**
