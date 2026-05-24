@@ -121,11 +121,14 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
             Storage.setValue("waveData", null);
             Storage.deleteValue("syncError");
             Storage.deleteValue("errorAt");
-            Storage.deleteValue("geocodeUpdatedAt");
-            Storage.deleteValue("weatherUpdatedAt");
-            Storage.deleteValue("tideTimelineUpdatedAt");
-            Storage.deleteValue("tideExtremesUpdatedAt");
+            Storage.deleteValue("spotName");
         }
+        // Always delete these to force the background task to perform a fresh network sync
+        Storage.deleteValue("geocodeUpdatedAt");
+        Storage.deleteValue("weatherUpdatedAt");
+        Storage.deleteValue("tideTimelineUpdatedAt");
+        Storage.deleteValue("tideExtremesUpdatedAt");
+
         Storage.setValue("dataUpdatedAt", 0);
         
         scheduleNextBackgroundEvent(null);

@@ -533,6 +533,8 @@ class TideWatchView extends WatchUi.WatchFace {
             drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
         } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
             drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
+        } else if (mWeatherError == DataKeys.ERROR_QUOTA_EXCEEDED) {
+            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "swell API limit reached", Graphics.COLOR_RED);
         } else if (mWeatherError == DataKeys.ERROR_OTHER) {
             drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
         } else if (mValidSwells.size() > 0) {

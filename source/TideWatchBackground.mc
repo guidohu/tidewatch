@@ -188,7 +188,10 @@ class TideWatchBackground extends System.ServiceDelegate {
      * Executes the BigDataCloud reverse geocode request to fetch localized spot/locality names.
      */
     function makeBigDataCloudRequest() as Void {
-        if (isFresh("geocodeUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
+        var hasSpotName = (Application.Storage.getValue("spotName") != null);
+        var threshold = hasSpotName ? (24 * 3600) : Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
+
+        if (isFresh("geocodeUpdatedAt", threshold)) {
             System.println("Geocoding data is fresh, skipping.");
             if (mApiKey != null && !mApiKey.equals("")) {
                 makeStormglassWeatherRequest();
@@ -234,15 +237,19 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
 
         if (!success) {
-            spotName = Lang.format("$1$, $2$", [mTargetLat.format("%.2f"), mTargetLon.format("%.2f")]);
-            System.println("Geocoding failed, fallback to coordinates: " + spotName);
+            var cachedSpotName = Application.Storage.getValue("spotName") as String?;
+            if (cachedSpotName == null) {
+                spotName = Lang.format("$1$, $2$", [mTargetLat.format("%.2f"), mTargetLon.format("%.2f")]);
+                Application.Storage.setValue("spotName", spotName);
+                mDataUpdatedThisRun = true;
+            }
+            System.println("Geocoding failed, fallback to coordinates (or keep cached): " + spotName);
         } else {
             Application.Storage.setValue("geocodeUpdatedAt", Time.now().value());
+            Application.Storage.setValue("spotName", spotName);
+            mDataUpdatedThisRun = true;
             System.println("Resolved spotName: " + spotName);
         }
-
-        Application.Storage.setValue("spotName", spotName);
-        mDataUpdatedThisRun = true;
 
         // Always proceed to the next request
         data = null;
@@ -288,7 +295,9 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (responseCode != 200) { 
             System.println("Weather data: " + data);
             var errCode = DataKeys.ERROR_OTHER;
-            if (data != null && data instanceof Dictionary && data.hasKey("errors")) {
+            if (responseCode == 402 || responseCode == 429) {
+                errCode = DataKeys.ERROR_QUOTA_EXCEEDED;
+            } else if (data != null && data instanceof Dictionary && data.hasKey("errors")) {
                 var errors = data.get("errors") as Dictionary;
                 if (errors.hasKey("key")) {
                     var keyErr = errors.get("key") as String;
@@ -303,7 +312,8 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
 
         logMemoryUsage();
-        if (handleQuotaError(responseCode)) { return; }
+        // Do not call handleQuotaError here, since we want tide data to continue syncing
+        // even if the user's weather API key has exceeded its quota limits.
 
         if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
             var pts = data.get("data");
