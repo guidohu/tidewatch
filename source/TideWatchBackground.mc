@@ -104,6 +104,50 @@ class TideWatchBackground extends System.ServiceDelegate {
         mTideEnd = tideEndTs.value();
 
         System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
+        
+        var hasSpotName = (Application.Storage.getValue("spotName") != null);
+        var threshold = hasSpotName ? (24 * 3600) : Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
+        
+        var geocodeNeed = !isFresh("geocodeUpdatedAt", threshold);
+        var weatherNeed = (mApiKey != null && !mApiKey.equals("")) && !isFresh("weatherUpdatedAt", Constants.SLOW_SYNC_FRESHNESS_THRESHOLD_SEC);
+        var tideTimelineNeed = !isFresh("tideTimelineUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC);
+        var tideExtremesNeed = !isFresh("tideExtremesUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC);
+
+        if (geocodeNeed || weatherNeed || tideTimelineNeed || tideExtremesNeed) {
+            makePingRequest();
+        } else {
+            System.println("All cached data is fresh. No sync needed.");
+            finalizeSync();
+        }
+    }
+
+    /**
+     * Sends a ping request to the proxy reporting uuid and version.
+     */
+    function makePingRequest() as Void {
+        var uuid = Application.Storage.getValue("anonymous_user_id") as String?;
+        if (uuid == null) {
+            uuid = "";
+        }
+        var url = "https://forecast.wakeandsurf.ch/ping";
+        var params = {
+            "uuid" => uuid,
+            "version" => Version.STRING
+        };
+        var options = getRequestOptions(false);
+        System.println("Requesting Ping with: " + url + " parameters: " + params);
+        Communications.makeWebRequest(url, params, options, method(:onReceivePing));
+    }
+
+    /**
+     * Callback for the ping web request.
+     */
+    function onReceivePing(responseCode as Number, data as Dictionary?) as Void {
+        System.println("Ping response: " + responseCode);
+        if (responseCode != 200) {
+            System.println("Ping failed, data: " + data);
+        }
+        // Always proceed to the next request
         makeBigDataCloudRequest();
     }
 
