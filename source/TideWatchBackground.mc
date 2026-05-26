@@ -53,7 +53,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @return Stored App ID string, or null if not found.
      */
     function getAppId() as String? {
-        return Application.Storage.getValue("AppId") as String?;
+        return AppStorage.getAppId();
     }
 
     /**
@@ -105,7 +105,7 @@ class TideWatchBackground extends System.ServiceDelegate {
 
         System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
         
-        var hasSpotName = (Application.Storage.getValue("spotName") != null);
+        var hasSpotName = (AppStorage.getSpotName() != null);
         var threshold = hasSpotName ? (24 * 3600) : Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
         
         var geocodeNeed = !isFresh("geocodeUpdatedAt", threshold);
@@ -125,7 +125,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      * Sends a ping request to the proxy reporting uuid and version.
      */
     function makePingRequest() as Void {
-        var uuid = Application.Storage.getValue("anonymous_user_id") as String?;
+        var uuid = AppStorage.getAnonymousUserId();
         if (uuid == null) {
             uuid = "";
         }
@@ -174,8 +174,17 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @return True if data exists and is younger than freshnessSec; false otherwise.
      */
     function isFresh(key as String, freshnessSec as Number) as Boolean {
-        var updatedAt = Application.Storage.getValue(key);
-        if (updatedAt != null && (updatedAt instanceof Number || updatedAt instanceof Long)) {
+        var updatedAt = null;
+        if (key.equals("geocodeUpdatedAt")) {
+            updatedAt = AppStorage.getGeocodeUpdatedAt();
+        } else if (key.equals("weatherUpdatedAt")) {
+            updatedAt = AppStorage.getWeatherUpdatedAt();
+        } else if (key.equals("tideTimelineUpdatedAt")) {
+            updatedAt = AppStorage.getTideTimelineUpdatedAt();
+        } else if (key.equals("tideExtremesUpdatedAt")) {
+            updatedAt = AppStorage.getTideExtremesUpdatedAt();
+        }
+        if (updatedAt != null) {
             return (Time.now().value().toNumber() - updatedAt.toNumber()) < freshnessSec;
         }
         return false;
@@ -244,7 +253,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function finalizeSync() as Void {
         if (mDataUpdatedThisRun) {
-            Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+            AppStorage.setDataUpdatedAt(Time.now().value());
         }
         clearSyncError();
         exitBackground(true);
@@ -254,7 +263,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      * Executes the BigDataCloud reverse geocode request to fetch localized spot/locality names.
      */
     function makeBigDataCloudRequest() as Void {
-        var hasSpotName = (Application.Storage.getValue("spotName") != null);
+        var hasSpotName = (AppStorage.getSpotName() != null);
         var threshold = hasSpotName ? (24 * 3600) : Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
 
         if (isFresh("geocodeUpdatedAt", threshold)) {
@@ -303,16 +312,16 @@ class TideWatchBackground extends System.ServiceDelegate {
         }
 
         if (!success) {
-            var cachedSpotName = Application.Storage.getValue("spotName") as String?;
+            var cachedSpotName = AppStorage.getSpotName();
             if (cachedSpotName == null) {
                 spotName = Lang.format("$1$, $2$", [mTargetLat.format("%.2f"), mTargetLon.format("%.2f")]);
-                Application.Storage.setValue("spotName", spotName);
+                AppStorage.setSpotName(spotName);
                 mDataUpdatedThisRun = true;
             }
             System.println("Geocoding failed, fallback to coordinates (or keep cached): " + spotName);
         } else {
-            Application.Storage.setValue("geocodeUpdatedAt", Time.now().value());
-            Application.Storage.setValue("spotName", spotName);
+            AppStorage.setGeocodeUpdatedAt(Time.now().value());
+            AppStorage.setSpotName(spotName);
             mDataUpdatedThisRun = true;
             System.println("Resolved spotName: " + spotName);
         }
@@ -372,9 +381,9 @@ class TideWatchBackground extends System.ServiceDelegate {
                     }
                 }
             }
-            Application.Storage.setValue("weatherError", errCode);
+            AppStorage.setWeatherError(errCode);
         } else {
-            Application.Storage.deleteValue("weatherError");
+            AppStorage.clearWeatherError();
         }
 
         logMemoryUsage();
@@ -417,9 +426,9 @@ class TideWatchBackground extends System.ServiceDelegate {
                     }
                 }
                 
-                Application.Storage.setValue("waveData", waveResults);
-                Application.Storage.setValue("swellUnitApi", DataKeys.UNIT_METER); // Stormglass default metric
-                Application.Storage.setValue("weatherUpdatedAt", Time.now().value());
+                AppStorage.setWaveData(waveResults);
+                AppStorage.setSwellUnitApi(DataKeys.UNIT_METER); // Stormglass default metric
+                AppStorage.setWeatherUpdatedAt(Time.now().value());
                 mDataUpdatedThisRun = true;
                 waveResults = null;
                 data = null;
@@ -488,9 +497,9 @@ class TideWatchBackground extends System.ServiceDelegate {
                 }
 
                 if (tideData.size() > 0) {
-                    Application.Storage.setValue("tideData", tideData);
-                    Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
-                    Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
+                    AppStorage.setTideData(tideData);
+                    AppStorage.setTideUnitApi(DataKeys.UNIT_METER);
+                    AppStorage.setTideTimelineUpdatedAt(Time.now().value());
                     mDataUpdatedThisRun = true;
                     
                     tideData = null;
@@ -573,8 +582,8 @@ class TideWatchBackground extends System.ServiceDelegate {
                     }
                 }
 
-                Application.Storage.setValue("tideExtrema", extrema);
-                Application.Storage.setValue("tideExtremesUpdatedAt", Time.now().value());
+                AppStorage.setTideExtrema(extrema);
+                AppStorage.setTideExtremesUpdatedAt(Time.now().value());
                 mDataUpdatedThisRun = true;
                 
                 // Clean exit, successful sync pipeline
@@ -592,15 +601,15 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param code The numeric error code.
      */
     function saveSyncError(code as Number) as Void {
-        Application.Storage.setValue("syncError", code);
-        Application.Storage.setValue("errorAt", Time.now().value());
+        AppStorage.setSyncError(code);
+        AppStorage.setErrorAt(Time.now().value());
     }
 
     /**
      * Removes saved sync failure codes and timestamps from storage.
      */
     function clearSyncError() as Void {
-        Application.Storage.deleteValue("syncError");
-        Application.Storage.deleteValue("errorAt");
+        AppStorage.clearSyncError();
+        AppStorage.clearErrorAt();
     }
 }

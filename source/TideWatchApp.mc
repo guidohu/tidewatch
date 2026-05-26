@@ -95,25 +95,25 @@ class TideWatchApp extends Application.AppBase {
 
         // Version-based data migrations
         var currentVersion = Version.STRING;
-        var lastVersion = Application.Storage.getValue("AppVersion") as String?;
+        var lastVersion = AppStorage.getAppVersion();
 
         if (lastVersion == null || Version.isLowerThan(lastVersion, currentVersion)) {
             System.println("Upgrading app from " + (lastVersion == null ? "unknown" : lastVersion) + " to " + currentVersion);
             
             // Invalidate legacy formats from prior versions
-            Application.Storage.deleteValue("tideTimes");
-            Application.Storage.deleteValue("tideData");
-            Application.Storage.deleteValue("waveData");
-            Application.Storage.setValue("dataUpdatedAt", 0);
+            AppStorage.clearTideTimes();
+            AppStorage.clearTideData();
+            AppStorage.clearWaveData();
+            AppStorage.setDataUpdatedAt(0);
 
             // Reset sync thresholds to trigger immediate background download
-            Application.Storage.deleteValue("geocodeUpdatedAt");
-            Application.Storage.deleteValue("weatherUpdatedAt");
-            Application.Storage.deleteValue("tideTimelineUpdatedAt");
-            Application.Storage.deleteValue("tideExtremesUpdatedAt");
+            AppStorage.clearGeocodeUpdatedAt();
+            AppStorage.clearWeatherUpdatedAt();
+            AppStorage.clearTideTimelineUpdatedAt();
+            AppStorage.clearTideExtremesUpdatedAt();
 
             // Save the new version string to storage
-            Application.Storage.setValue("AppVersion", currentVersion);
+            AppStorage.setAppVersion(currentVersion);
         }
     }
 
@@ -121,7 +121,7 @@ class TideWatchApp extends Application.AppBase {
      * Retrieves or generates a pseudo-random anonymous user identifier.
      */
     function getOrCreateAnonymousIdentifier() {
-        var userId = Storage.getValue("anonymous_user_id");
+        var userId = AppStorage.getAnonymousUserId();
         
         if (userId == null) {
             var chars = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];
@@ -138,7 +138,7 @@ class TideWatchApp extends Application.AppBase {
             }
             
             userId = uuid;
-            Storage.setValue("anonymous_user_id", userId);
+            AppStorage.setAnonymousUserId(userId);
         }
         return userId;
     }
@@ -226,7 +226,7 @@ class TideWatchApp extends Application.AppBase {
      */
     function getInitialView() {
         // Store AppId for background service since Rez isn't accessible there
-        Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
+        AppStorage.setAppId(WatchUi.loadResource(Rez.Strings.AppId) as String);
 
         getOrCreateAnonymousIdentifier();
         migrateSettings();
@@ -281,14 +281,14 @@ class TideWatchApp extends Application.AppBase {
             if (response instanceof Boolean && response as Boolean) {
                 // Data is now saved directly to Storage by the background service.
                 // We just need to trigger a UI refresh and handle follow-up registration.
-                Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+                AppStorage.setDataUpdatedAt(Time.now().value());
                 WatchUi.requestUpdate();
             } else {
                 System.println("TideWatch Background service: kpay pass-through sync failed");
             }
         } else if (kpay == null && data instanceof Boolean) {
             if (data as Boolean) {
-                Application.Storage.setValue("dataUpdatedAt", Time.now().value());
+                AppStorage.setDataUpdatedAt(Time.now().value());
                 WatchUi.requestUpdate();
             } else {
                 System.println("TideWatch Background service: sync failed");

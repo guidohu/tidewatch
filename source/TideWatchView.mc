@@ -227,24 +227,23 @@ class TideWatchView extends WatchUi.WatchFace {
             ((showDate == true ? 1 : 0) << 18) +
             ((use24Hour ? 1 : 0) << 19);
 
-        var dataUpdatedAt = Application.Storage.getValue("dataUpdatedAt") as Number?;
-        if (dataUpdatedAt == null) { dataUpdatedAt = 0; }
+        var dataUpdatedAt = AppStorage.getDataUpdatedAt();
 
         if (now - mLastLazyDataUpdate >= Constants.DATA_UPDATE_INTERVAL_SEC || currentHash != mLastSettingsHash || dataUpdatedAt != mLastDataUpdatedAt) {
             mLastLazyDataUpdate = now;
             mLastSettingsHash = currentHash;
             mLastDataUpdatedAt = dataUpdatedAt;
 
-            mcTideData = Application.Storage.getValue("tideData") as Array?;
+            mcTideData = AppStorage.getTideData();
 
-            mcTideExtrema = Application.Storage.getValue("tideExtrema") as Array?;
-            mcWaveData = Application.Storage.getValue("waveData") as Array?;
-            mcTideUnitApi = Application.Storage.getValue("tideUnitApi") as Number?;
-            mcSwellUnitApi = Application.Storage.getValue("swellUnitApi") as Number?;
-            mcSpotName = Application.Storage.getValue("spotName") as String?;
-            mSyncError = Application.Storage.getValue("syncError") as Number?;
-            mErrorAt = Application.Storage.getValue("errorAt") as Number?;
-            mWeatherError = Application.Storage.getValue("weatherError") as Number?;
+            mcTideExtrema = AppStorage.getTideExtrema();
+            mcWaveData = AppStorage.getWaveData();
+            mcTideUnitApi = AppStorage.getTideUnitApi();
+            mcSwellUnitApi = AppStorage.getSwellUnitApi();
+            mcSpotName = AppStorage.getSpotName();
+            mSyncError = AppStorage.getSyncError();
+            mErrorAt = AppStorage.getErrorAt();
+            mWeatherError = AppStorage.getWeatherError();
         }
 
         var stats = System.getSystemStats();
@@ -298,7 +297,7 @@ class TideWatchView extends WatchUi.WatchFace {
             mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
             mTideNumStr = dispHeight.format("%.2f");
 
-            if (mcTideExtrema != null && mcTideExtrema instanceof Array) {
+            if (mcTideExtrema != null) {
                 for (var i = 0; i < mcTideExtrema.size(); i++) {
                     var ext = mcTideExtrema[i] as Array?;
                     if (ext == null) {
@@ -403,7 +402,7 @@ class TideWatchView extends WatchUi.WatchFace {
             if (mMinH == 9999.0) { mMinH = 0.0; mMaxH = 1.0; }
             if (mMaxH == mMinH) { mMaxH = mMinH + 1.0; }
             
-            if (mcWaveData != null && mcWaveData instanceof Array) {
+            if (mcWaveData != null) {
                 var wDataArray = mcWaveData as Array;
                 for (var i = 0; i < wDataArray.size(); i++) {
                     var wPoint = wDataArray[i];
@@ -606,7 +605,7 @@ class TideWatchView extends WatchUi.WatchFace {
             var drawWidth = mScreenWidth - 2 * graphMargin;
 
             // Swell Graph
-            if (showSwellGraph && mcWaveData != null && mcWaveData instanceof Array) {
+            if (showSwellGraph && mcWaveData != null) {
                 var colors = [baseColor, baseColor, baseColor];
                 for (var s = 0; s < 2; s++) {
                     var lastSX = -1, lastSY = -1;

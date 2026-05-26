@@ -17,13 +17,13 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
     function initialize() {
         Menu2.initialize({:title=>"Settings"});
         
-        var spotName = Application.Storage.getValue("spotName");
+        var spotName = AppStorage.getSpotName();
         var gpsLat = Application.Properties.getValue("GpsLat");
         var gpsLon = Application.Properties.getValue("GpsLon");
 
         var subLabel = "";
-        if (spotName != null && spotName instanceof String && !spotName.equals("")) {
-            subLabel = spotName as String;
+        if (spotName != null && !spotName.equals("")) {
+            subLabel = spotName;
         } else if (gpsLat != null && gpsLon != null && (gpsLat instanceof Float || gpsLat instanceof Double) && (gpsLon instanceof Float || gpsLon instanceof Double)) {
             subLabel = gpsLat.format("%.4f") + ", " + gpsLon.format("%.4f");
         }
@@ -116,22 +116,15 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
      */
     static function triggerImmediateSync(fullInvalidate as Boolean) as Void {
         if (fullInvalidate) {
-            Storage.setValue("tideData", null);
-            Storage.setValue("tideStartTime", null);
-            Storage.setValue("tideInterval", null);
-            Storage.setValue("tideExtrema", null);
-            Storage.setValue("waveData", null);
-            Storage.deleteValue("syncError");
-            Storage.deleteValue("errorAt");
-            Storage.deleteValue("spotName");
+            AppStorage.clearCache();
+        } else {
+            // Always delete these to force the background task to perform a fresh network sync
+            AppStorage.clearGeocodeUpdatedAt();
+            AppStorage.clearWeatherUpdatedAt();
+            AppStorage.clearTideTimelineUpdatedAt();
+            AppStorage.clearTideExtremesUpdatedAt();
+            AppStorage.setDataUpdatedAt(0);
         }
-        // Always delete these to force the background task to perform a fresh network sync
-        Storage.deleteValue("geocodeUpdatedAt");
-        Storage.deleteValue("weatherUpdatedAt");
-        Storage.deleteValue("tideTimelineUpdatedAt");
-        Storage.deleteValue("tideExtremesUpdatedAt");
-
-        Storage.setValue("dataUpdatedAt", 0);
         
         scheduleNextBackgroundEvent(null);
     }
@@ -307,7 +300,7 @@ class LocationOptionMenuDelegate extends WatchUi.Menu2InputDelegate {
                 var lon = latLon[1].toFloat();
                 Application.Properties.setValue("GpsLat", lat);
                 Application.Properties.setValue("GpsLon", lon);
-                Application.Storage.deleteValue("spotName");
+                AppStorage.clearSpotName();
                 _parentItem.setSubLabel(lat.format("%.4f") + ", " + lon.format("%.4f"));
                 
                 TideWatchSettingsMenu.triggerImmediateSync(true);
@@ -401,9 +394,9 @@ class AboutMenu extends WatchUi.Menu2 {
     function initialize() {
         Menu2.initialize({:title=>"About"});
         
-        var lastSync = Application.Storage.getValue("dataUpdatedAt") as Number?;
+        var lastSync = AppStorage.getDataUpdatedAt();
         var lastSyncStr = "Never";
-        if (lastSync != null && lastSync > 0) {
+        if (lastSync > 0) {
             var info = Gregorian.info(new Time.Moment(lastSync), Time.FORMAT_SHORT);
             var use24Hour = System.getDeviceSettings().is24Hour;
             var hour = info.hour;
