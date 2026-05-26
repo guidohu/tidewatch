@@ -4,6 +4,7 @@ import Toybox.WatchUi;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Time;
+import Toybox.Time.Gregorian;
 import Toybox.Background;
 import Toybox.Application.Storage;
 import Toybox.Application.Properties;
@@ -74,6 +75,8 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.ExperimentsTitle), "", "Experiments", {}));
         
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.SyncTitle), "", "ForceSync", {}));
+        
+        addItem(new WatchUi.MenuItem("About", "", "About", {}));
     }
 
     /**
@@ -114,7 +117,6 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
     static function triggerImmediateSync(fullInvalidate as Boolean) as Void {
         if (fullInvalidate) {
             Storage.setValue("tideData", null);
-            Storage.setValue("tideTimes", null);
             Storage.setValue("tideStartTime", null);
             Storage.setValue("tideInterval", null);
             Storage.setValue("tideExtrema", null);
@@ -246,6 +248,8 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.requestUpdate();
         } else if (id.equals("Experiments")) {
             WatchUi.pushView(new ExperimentsMenu(), new ExperimentsMenuDelegate(), WatchUi.SLIDE_LEFT);
+        } else if (id.equals("About")) {
+            WatchUi.pushView(new AboutMenu(), new AboutMenuDelegate(), WatchUi.SLIDE_LEFT);
         } else if (item instanceof WatchUi.ToggleMenuItem) {
             Application.Properties.setValue(id, (item as WatchUi.ToggleMenuItem).isEnabled());
         }
@@ -390,5 +394,57 @@ class ExperimentsMenuDelegate extends WatchUi.Menu2InputDelegate {
             Application.Properties.setValue(id, val);
             (Application.getApp() as TideWatchApp).onSettingsChanged();
         }
+    }
+}
+
+class AboutMenu extends WatchUi.Menu2 {
+    function initialize() {
+        Menu2.initialize({:title=>"About"});
+        
+        var lastSync = Application.Storage.getValue("dataUpdatedAt") as Number?;
+        var lastSyncStr = "Never";
+        if (lastSync != null && lastSync > 0) {
+            var info = Gregorian.info(new Time.Moment(lastSync), Time.FORMAT_SHORT);
+            var use24Hour = System.getDeviceSettings().is24Hour;
+            var hour = info.hour;
+            var amPm = "";
+            if (!use24Hour) {
+                if (hour >= 12) {
+                    amPm = " PM";
+                    if (hour > 12) {
+                        hour -= 12;
+                    }
+                } else {
+                    amPm = " AM";
+                    if (hour == 0) {
+                        hour = 12;
+                    }
+                }
+            }
+            lastSyncStr = Lang.format("$1$-$2$-$3$ $4$:$5$$6$", [
+                info.year,
+                info.month.format("%02d"),
+                info.day.format("%02d"),
+                hour.format(use24Hour ? "%02d" : "%d"),
+                info.min.format("%02d"),
+                amPm
+            ]);
+        }
+        
+        addItem(new WatchUi.MenuItem("Version", Version.STRING, "version", {}));
+        addItem(new WatchUi.MenuItem("Last Sync", lastSyncStr, "sync", {}));
+        addItem(new WatchUi.MenuItem("openwaters.io", "used for tide data", "ow", {}));
+        addItem(new WatchUi.MenuItem("stormglass.io", "used for weather data", "stormglass", {}));
+        addItem(new WatchUi.MenuItem("bigdatacloud.com", "used for geo data", "bigdatacloud", {}));
+    }
+}
+
+class AboutMenuDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+    
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        // Read-only menu, do nothing on selection
     }
 }

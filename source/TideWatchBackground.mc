@@ -345,7 +345,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 for (var i = 0; i < pts.size(); i++) {
                     var pt = pts[i];
                     if (pt instanceof Dictionary) {
-                        var wPoint = new Array<Number?>[9];
+                        var wPoint = new Array<Number?>[7];
                         
                         // Primary Swell
                         var h = pt.get("h1");
@@ -362,6 +362,12 @@ class TideWatchBackground extends System.ServiceDelegate {
                         if (h2 != null) { wPoint[3] = (parseFloatSafe(h2) * 100.0).toNumber(); }
                         if (p2 != null) { wPoint[4] = parseNumberSafe(p2); }
                         if (d2 != null) { wPoint[5] = parseNumberSafe(d2); }
+
+                        // Timestamp (to align swell data with tide times correctly)
+                        var ts = pt.get("ts");
+                        if (ts != null) {
+                            wPoint[6] = parseNumberSafe(ts);
+                        }
 
                         waveResults[i] = wPoint;
                     }
@@ -420,40 +426,35 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
             var pts = data.get("data");
             if (pts instanceof Array) {
-                var gridHeights = [];
-                var gridTimes = [];
+                var tideData = [];
                 
                 for (var i = 0; i < pts.size(); i++) {
                     var point = pts[i];
                     if (point instanceof Dictionary) {
                         var ts = point.get("ts");
                         if (ts != null) {
-                            gridTimes.add(parseNumberSafe(ts));
                             var h = point.get("h");
+                            var hVal = 0;
                             if (h != null) {
-                                gridHeights.add((parseFloatSafe(h) * 100.0).toNumber());
-                            } else {
-                                gridHeights.add(0);
+                                hVal = (parseFloatSafe(h) * 100.0).toNumber();
                             }
+                            tideData.add([parseNumberSafe(ts), hVal]);
                         }
                     }
                 }
 
-                if (gridTimes.size() > 0) {
-                    Application.Storage.setValue("tideTimes", gridTimes);
-                    Application.Storage.setValue("tideData", gridHeights);
+                if (tideData.size() > 0) {
+                    Application.Storage.setValue("tideData", tideData);
                     Application.Storage.setValue("tideUnitApi", DataKeys.UNIT_METER);
                     Application.Storage.setValue("tideTimelineUpdatedAt", Time.now().value());
                     mDataUpdatedThisRun = true;
                     
-                    gridTimes = null;
-                    gridHeights = null;
+                    tideData = null;
                     data = null;
                     makeTideExtremesRequest();
                     return;
                 } else {
-                    gridTimes = null;
-                    gridHeights = null;
+                    tideData = null;
                     data = null;
                     saveSyncError(DataKeys.ERROR_NO_DATA);
                     exitBackground(false);

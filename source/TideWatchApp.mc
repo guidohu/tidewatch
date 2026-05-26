@@ -1,6 +1,7 @@
 import Toybox.Application;
 import Toybox.Background;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.System;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
@@ -79,6 +80,7 @@ class TideWatchApp extends Application.AppBase {
      * into proper Floats for latitude and longitude.
      */
     function migrateSettings() as Void {
+        // Migrate potential string gps lat/lon from settings to float.
         var gpsLat = Application.Properties.getValue("GpsLat");
         if (gpsLat instanceof String) {
             Application.Properties.setValue("GpsLat", parseLatitude(gpsLat));
@@ -90,6 +92,55 @@ class TideWatchApp extends Application.AppBase {
             Application.Properties.setValue("GpsLon", parseLongitude(gpsLon));
             System.println("Migrated GpsLon from String to Float.");
         }
+
+        // Version-based data migrations
+        var currentVersion = Version.STRING;
+        var lastVersion = Application.Storage.getValue("AppVersion") as String?;
+
+        if (lastVersion == null || Version.isLowerThan(lastVersion, currentVersion)) {
+            System.println("Upgrading app from " + (lastVersion == null ? "unknown" : lastVersion) + " to " + currentVersion);
+            
+            // Invalidate legacy formats from prior versions
+            Application.Storage.deleteValue("tideTimes");
+            Application.Storage.deleteValue("tideData");
+            Application.Storage.deleteValue("waveData");
+            Application.Storage.setValue("dataUpdatedAt", 0);
+
+            // Reset sync thresholds to trigger immediate background download
+            Application.Storage.deleteValue("geocodeUpdatedAt");
+            Application.Storage.deleteValue("weatherUpdatedAt");
+            Application.Storage.deleteValue("tideTimelineUpdatedAt");
+            Application.Storage.deleteValue("tideExtremesUpdatedAt");
+
+            // Save the new version string to storage
+            Application.Storage.setValue("AppVersion", currentVersion);
+        }
+    }
+
+    /**
+     * Retrieves or generates a pseudo-random anonymous user identifier.
+     */
+    function getOrCreateAnonymousIdentifier() {
+        var userId = Storage.getValue("anonymous_user_id");
+        
+        if (userId == null) {
+            var chars = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];
+            var uuid = "";
+            
+            // Generate a 32-character hex string (UUIDv4 style: 8-4-4-4-12)
+            for (var i = 0; i < 32; i++) {
+                if (i == 8 || i == 12 || i == 16 || i == 20) {
+                    uuid += "-";
+                }
+                // Math.rand() is fine for generating a single index 0-15
+                var idx = Math.rand() % 16;
+                uuid += chars[idx];
+            }
+            
+            userId = uuid;
+            Storage.setValue("anonymous_user_id", userId);
+        }
+        return userId;
     }
 
     /**
@@ -177,6 +228,7 @@ class TideWatchApp extends Application.AppBase {
         // Store AppId for background service since Rez isn't accessible there
         Application.Storage.setValue("AppId", WatchUi.loadResource(Rez.Strings.AppId));
 
+        getOrCreateAnonymousIdentifier();
         migrateSettings();
 
         mLastGpsLat = Application.Properties.getValue("GpsLat");
