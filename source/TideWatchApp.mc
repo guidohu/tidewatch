@@ -328,13 +328,6 @@ class TideWatchApp extends Application.AppBase {
     }
 }
 
-/**
- * Helper to get the active TideWatchApp instance.
- * @return The active TideWatchApp application instance.
- */
-function getApp() as TideWatchApp {
-    return Application.getApp() as TideWatchApp;
-}
 
 /**
  * Registers/schedules the next background temporal event.

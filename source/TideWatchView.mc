@@ -1,4 +1,3 @@
-import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Graphics;
 import Toybox.Lang;
@@ -86,14 +85,8 @@ class TideWatchView extends WatchUi.WatchFace {
             if (!kpayInstance.isLicensed()) {
                 if (kpayInstance.shouldShowDialog()) {
                     kpayInstance.drawDialog(dc);
-                } else {
-                    dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-                    dc.clear();
-                    var midY = dc.getHeight() / 2;
-                    drawCenteredText(dc, midY - 12, Graphics.FONT_XTINY, "KiezelPay", Graphics.COLOR_WHITE);
-                    drawCenteredText(dc, midY + 12, Graphics.FONT_XTINY, "Fetching code...", Graphics.COLOR_WHITE);
+                    return;
                 }
-                return;
             }
         }
         dc.setPenWidth(1);

@@ -8,6 +8,6 @@ function getKPayConfig() as Dictionary {
         // simulate successful purchases without spending actual money.
         "TEST_MODE" => false,
         // It enables an automatic "try before you buy" grace period for new users.
-        "TRIAL_ENABLED" => false
+        "TRIAL_ENABLED" => true
     };
 }
