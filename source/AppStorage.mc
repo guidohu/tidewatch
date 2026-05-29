@@ -1,18 +1,9 @@
 import Toybox.Application;
 import Toybox.Lang;
+import Toybox.Math;
 
 (:background)
 module AppStorage {
-    // Legacy / Deleted keys
-    public function clearTideTimes() as Void {
-        Application.Storage.deleteValue("tideTimes");
-    }
-    public function clearTideStartTime() as Void {
-        Application.Storage.setValue("tideStartTime", null);
-    }
-    public function clearTideInterval() as Void {
-        Application.Storage.setValue("tideInterval", null);
-    }
 
     // App Version
     public function getAppVersion() as String? {
@@ -47,6 +38,27 @@ module AppStorage {
     }
     public function setAnonymousUserId(val as String) as Void {
         Application.Storage.setValue("anonymous_user_id", val);
+    }
+    
+    public function getOrCreateAnonymousUserId() as String {
+        var userId = getAnonymousUserId();
+        
+        if (userId == null) {
+            var chars = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];
+            var uuid = "";
+            
+            for (var i = 0; i < 32; i++) {
+                if (i == 8 || i == 12 || i == 16 || i == 20) {
+                    uuid += "-";
+                }
+                var idx = Math.rand() % 16;
+                uuid += chars[idx];
+            }
+            
+            userId = uuid;
+            setAnonymousUserId(userId);
+        }
+        return userId;
     }
 
     // Data Update Timestamps
@@ -177,8 +189,6 @@ module AppStorage {
     // Bulk actions
     public function clearCache() as Void {
         clearTideData();
-        clearTideStartTime();
-        clearTideInterval();
         clearTideExtrema();
         clearWaveData();
         clearSyncError();

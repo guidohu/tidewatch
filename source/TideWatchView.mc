@@ -255,177 +255,186 @@ class TideWatchView extends WatchUi.WatchFace {
         mMaxT = now + GRAPH_FUTURE_HOURS * Constants.SECONDS_IN_HOUR;
 
         if (mcTideData != null && mcTideData.size() > 0) {
-            var found = false;
-            var currWaveIdx = -1;
-            var tDataArray = mcTideData as Array;
-            for (var i = 0; i < tDataArray.size() - 1; i++) {
-                var p1 = tDataArray[i] as Array;
-                var p2 = tDataArray[i + 1] as Array;
-                var t1 = p1[0] as Number;
-                var t2 = p2[0] as Number;
-                if (now >= t1 && now <= t2) {
-                    var h1 = convertHeight(p1[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                    var h2 = convertHeight(p2[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                    var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
-                    mCurrentHeight = h1 + (h2 - h1) * ratio;
-                    mIsRising = h2 > h1;
-                    currWaveIdx = i;
-                    found = true;
+            var currWaveIdx = findCurrentTideState(now, targetTideUnit);
+            findNextExtrema(now, targetTideUnit, use24Hour);
+            findCurrentSwell(now, targetSwellUnit, currWaveIdx);
+            calculateGraphBounds();
+        }
+    }
+
+    function findCurrentTideState(now as Number, targetTideUnit as Number) as Number {
+        var found = false;
+        var currWaveIdx = -1;
+        var tDataArray = mcTideData as Array;
+        for (var i = 0; i < tDataArray.size() - 1; i++) {
+            var p1 = tDataArray[i] as Array;
+            var p2 = tDataArray[i + 1] as Array;
+            var t1 = p1[0] as Number;
+            var t2 = p2[0] as Number;
+            if (now >= t1 && now <= t2) {
+                var h1 = convertHeight(p1[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                var h2 = convertHeight(p2[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
+                mCurrentHeight = h1 + (h2 - h1) * ratio;
+                mIsRising = h2 > h1;
+                currWaveIdx = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            var pFirst = tDataArray[0] as Array;
+            var pLast = tDataArray[tDataArray.size() - 1] as Array;
+            if (now < (pFirst[0] as Number)) {
+                mCurrentHeight = convertHeight(pFirst[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                currWaveIdx = 0;
+            } else {
+                mCurrentHeight = convertHeight(pLast[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                currWaveIdx = tDataArray.size() - 1;
+            }
+        }
+
+        var dispHeight = convertHeight((mCurrentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
+        mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
+        mTideNumStr = dispHeight.format("%.2f");
+        
+        return currWaveIdx;
+    }
+
+    function findNextExtrema(now as Number, targetTideUnit as Number, use24Hour as Boolean) as Void {
+        if (mcTideExtrema != null) {
+            for (var i = 0; i < mcTideExtrema.size(); i++) {
+                var ext = mcTideExtrema[i] as Array?;
+                if (ext == null) {
+                    System.println("invalid data for tide extrema");
+                    break;
+                }
+                if (ext[0] > now) {
+                    var extTs = ext[0] as Number;
+                    var rawExtH = ext[1] as Number;
+                    var typeCode = ext[2];
+                    var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
+                    var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
+                    var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
+                    var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
+                    var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
+                    mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
                     break;
                 }
             }
-            if (!found) {
-                var pFirst = tDataArray[0] as Array;
-                var pLast = tDataArray[tDataArray.size() - 1] as Array;
-                if (now < (pFirst[0] as Number)) {
-                    mCurrentHeight = convertHeight(pFirst[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                    currWaveIdx = 0;
+        }
+    }
+
+    function findCurrentSwell(now as Number, targetSwellUnit as Number, currWaveIdx as Number) as Void {
+        if (mcWaveData != null) {
+            var waveDataArray = mcWaveData as Array;
+            var currentWave = null;
+            
+            var minDiff = 9999999;
+            for (var i = 0; i < waveDataArray.size(); i++) {
+                var wPoint = waveDataArray[i];
+                if (wPoint != null && wPoint instanceof Array && wPoint.size() > 6 && wPoint[6] != null) {
+                    var wTs = wPoint[6] as Number;
+                    var diff = now - wTs;
+                    if (diff < 0) { diff = -diff; }
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        currentWave = wPoint;
+                    }
+                }
+            }
+            
+            if (currentWave == null && waveDataArray.size() > 0) {
+                if (currWaveIdx >= 0 && currWaveIdx < waveDataArray.size()) {
+                    currentWave = waveDataArray[currWaveIdx];
                 } else {
-                    mCurrentHeight = convertHeight(pLast[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                    currWaveIdx = tDataArray.size() - 1;
-                }
-            }
-
-            var dispHeight = convertHeight((mCurrentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
-            mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
-            mTideNumStr = dispHeight.format("%.2f");
-
-            if (mcTideExtrema != null) {
-                for (var i = 0; i < mcTideExtrema.size(); i++) {
-                    var ext = mcTideExtrema[i] as Array?;
-                    if (ext == null) {
-                        System.println("invalid data for tide extrema");
-                        break;
-                    }
-                    if (ext[0] > now) {
-                        var extTs = ext[0] as Number;
-                        var rawExtH = ext[1] as Number;
-                        var typeCode = ext[2];
-                        var extType = (typeCode == DataKeys.TIDE_TYPE_HIGH) ? "High" : "Low";
-                        var extInfo = Gregorian.info(new Time.Moment(extTs.toNumber()), Time.FORMAT_SHORT);
-                        var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
-                        var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
-                        var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
-                        mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
-                        break;
-                    }
-                }
-            }
-
-            if (mcWaveData != null) {
-                var waveDataArray = mcWaveData as Array;
-                var currentWave = null;
-                
-                // Find the swell data point closest in time to 'now'
-                var minDiff = 9999999;
-                for (var i = 0; i < waveDataArray.size(); i++) {
-                    var wPoint = waveDataArray[i];
-                    if (wPoint != null && wPoint instanceof Array && wPoint.size() > 6 && wPoint[6] != null) {
-                        var wTs = wPoint[6] as Number;
-                        var diff = now - wTs;
-                        if (diff < 0) {
-                            diff = -diff;
-                        }
-                        if (diff < minDiff) {
-                            minDiff = diff;
-                            currentWave = wPoint;
-                        }
-                    }
-                }
-                
-                // Fallback to index-based matching if no timestamps are available in the data
-                if (currentWave == null && waveDataArray.size() > 0) {
-                    if (currWaveIdx >= 0 && currWaveIdx < waveDataArray.size()) {
-                        currentWave = waveDataArray[currWaveIdx];
+                    var tDataArray = mcTideData as Array;
+                    var firstTide = tDataArray[0] as Array;
+                    if (firstTide != null && firstTide.size() > 0 && now < (firstTide[0] as Number)) {
+                        currentWave = waveDataArray[0];
                     } else {
-                        var firstTide = tDataArray[0] as Array;
-                        if (firstTide != null && firstTide.size() > 0 && now < (firstTide[0] as Number)) {
-                            currentWave = waveDataArray[0];
-                        } else {
-                            currentWave = waveDataArray[waveDataArray.size() - 1];
-                        }
-                    }
-                }
-
-                if (currentWave != null && currentWave instanceof Array && currentWave.size() >= 6) {
-                    for (var s = 0; s < 2; s++) {
-                        var h = currentWave[s*3];
-                        var hvRaw = 0;
-                        if (h != null) {
-                            hvRaw = (h instanceof Number) ? h as Number : (h as Float).toNumber();
-                        }
-                        
-                        var pVal = currentWave[s*3+1];
-                        var pValNum = 0;
-                        if (pVal != null) {
-                            pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
-                        }
-                        
-                        var dVal = currentWave[s*3+2];
-                        var dValFloat = 0.0;
-                        if (dVal != null) {
-                            dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
-                        }
-                        
-                        if (hvRaw > 0 && pValNum > 0) {
-                            mValidSwells.add([hvRaw, pValNum, dValFloat]);
-                            
-                            var dispH = convertHeight(hvRaw, mcSwellUnitApi, targetSwellUnit);
-                            var unit = (targetSwellUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
-                            var sStr = dispH.format("%.1f") + unit + "@" + pValNum.toString();
-                            mSwellTexts.add(sStr);
-                        }
+                        currentWave = waveDataArray[waveDataArray.size() - 1];
                     }
                 }
             }
 
-            for (var i = 0; i < tDataArray.size(); i++) {
-                var p = tDataArray[i] as Array;
-                var tTs = p[0] as Number;
-                if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
-                    var h = p[1];
+            if (currentWave != null && currentWave instanceof Array && currentWave.size() >= 6) {
+                for (var s = 0; s < 2; s++) {
+                    var h = currentWave[s*3];
+                    var hvRaw = 0;
                     if (h != null) {
-                        var hFloat = convertHeight(h as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        if (hFloat < mMinH) { mMinH = hFloat; }
-                        if (hFloat > mMaxH) { mMaxH = hFloat; }
+                        hvRaw = (h instanceof Number) ? h as Number : (h as Float).toNumber();
+                    }
+                    var pVal = currentWave[s*3+1];
+                    var pValNum = 0;
+                    if (pVal != null) {
+                        pValNum = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
+                    }
+                    var dVal = currentWave[s*3+2];
+                    var dValFloat = 0.0;
+                    if (dVal != null) {
+                        dValFloat = (dVal instanceof Number) ? (dVal as Number).toFloat() : dVal as Float;
+                    }
+                    if (hvRaw > 0 && pValNum > 0) {
+                        mValidSwells.add([hvRaw, pValNum, dValFloat]);
+                        var dispH = convertHeight(hvRaw, mcSwellUnitApi, targetSwellUnit);
+                        var unit = (targetSwellUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
+                        var sStr = dispH.format("%.1f") + unit + "@" + pValNum.toString();
+                        mSwellTexts.add(sStr);
                     }
                 }
             }
-            
-            if (mMinH == 9999.0) { mMinH = 0.0; mMaxH = 1.0; }
-            if (mMaxH == mMinH) { mMaxH = mMinH + 1.0; }
-            
-            if (mcWaveData != null) {
-                var wDataArray = mcWaveData as Array;
-                for (var i = 0; i < wDataArray.size(); i++) {
-                    var wPoint = wDataArray[i];
-                    if (wPoint != null && wPoint instanceof Array && wPoint.size() >= 6) {
-                        var wTs = (wPoint.size() > 6 && wPoint[6] != null) ? wPoint[6] as Number : null;
-                        if (wTs != null && wTs >= mMinT - Constants.SECONDS_IN_HOUR && wTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
-                            for (var s = 0; s < 2; s++) {
-                                var hVal = wPoint[s*3];
-                                var pVal = wPoint[s*3+1];
-                                var hv = 0;
-                                if (hVal != null) {
-                                    hv = (hVal instanceof Number) ? hVal as Number : (hVal as Float).toNumber();
-                                }
-                                var pv = 0;
-                                if (pVal != null) {
-                                    pv = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
-                                }
-                                if (hv > 0 && pv > 0) {
-                                    var h = convertHeight(hv, mcSwellUnitApi, DataKeys.UNIT_METER);
-                                    if (h < mMinSwellH) { mMinSwellH = h; }
-                                    if (h > mMaxSwellH) { mMaxSwellH = h; }
-                                }
+        }
+    }
+
+    function calculateGraphBounds() as Void {
+        var tDataArray = mcTideData as Array;
+        for (var i = 0; i < tDataArray.size(); i++) {
+            var p = tDataArray[i] as Array;
+            var tTs = p[0] as Number;
+            if (tTs >= mMinT - Constants.SECONDS_IN_HOUR && tTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
+                var h = p[1];
+                if (h != null) {
+                    var hFloat = convertHeight(h as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                    if (hFloat < mMinH) { mMinH = hFloat; }
+                    if (hFloat > mMaxH) { mMaxH = hFloat; }
+                }
+            }
+        }
+        
+        if (mMinH == 9999.0) { mMinH = 0.0; mMaxH = 1.0; }
+        if (mMaxH == mMinH) { mMaxH = mMinH + 1.0; }
+        
+        if (mcWaveData != null) {
+            var wDataArray = mcWaveData as Array;
+            for (var i = 0; i < wDataArray.size(); i++) {
+                var wPoint = wDataArray[i];
+                if (wPoint != null && wPoint instanceof Array && wPoint.size() >= 6) {
+                    var wTs = (wPoint.size() > 6 && wPoint[6] != null) ? wPoint[6] as Number : null;
+                    if (wTs != null && wTs >= mMinT - Constants.SECONDS_IN_HOUR && wTs <= mMaxT + Constants.SECONDS_IN_HOUR) {
+                        for (var s = 0; s < 2; s++) {
+                            var hVal = wPoint[s*3];
+                            var pVal = wPoint[s*3+1];
+                            var hv = 0;
+                            if (hVal != null) {
+                                hv = (hVal instanceof Number) ? hVal as Number : (hVal as Float).toNumber();
+                            }
+                            var pv = 0;
+                            if (pVal != null) {
+                                pv = (pVal instanceof Number) ? pVal as Number : (pVal as Float).toNumber();
+                            }
+                            if (hv > 0 && pv > 0) {
+                                var h = convertHeight(hv, mcSwellUnitApi, DataKeys.UNIT_METER);
+                                if (h < mMinSwellH) { mMinSwellH = h; }
+                                if (h > mMaxSwellH) { mMaxSwellH = h; }
                             }
                         }
                     }
                 }
             }
-            if (mMinSwellH == 9999.0) { mMinSwellH = 0.0; mMaxSwellH = 1.0; }
-            if (mMaxSwellH == mMinSwellH) { mMaxSwellH = mMinSwellH + 1.0; }
         }
+        if (mMinSwellH == 9999.0) { mMinSwellH = 0.0; mMaxSwellH = 1.0; }
+        if (mMaxSwellH == mMinSwellH) { mMaxSwellH = mMinSwellH + 1.0; }
     }
 
     /**

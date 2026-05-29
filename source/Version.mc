@@ -52,35 +52,23 @@ module Version {
         var parts = [0, 0, 0] as Array<Number>;
         var s = str;
         
-        var dot1 = s.find(".");
-        if (dot1 != null) {
-            var majorStr = s.substring(0, dot1);
-            if (majorStr != null) {
-                var val = majorStr.toNumber();
-                if (val != null) { parts[0] = val; }
+        for (var i = 0; i < 3; i++) {
+            if (s == null || s.length() == 0) {
+                break;
             }
-            s = s.substring(dot1 + 1, s.length());
-            if (s != null) {
-                var dot2 = s.find(".");
-                if (dot2 != null) {
-                    var minorStr = s.substring(0, dot2);
-                    if (minorStr != null) {
-                        var val = minorStr.toNumber();
-                        if (val != null) { parts[1] = val; }
-                    }
-                    var patchStr = s.substring(dot2 + 1, s.length());
-                    if (patchStr != null) {
-                        var val = patchStr.toNumber();
-                        if (val != null) { parts[2] = val; }
-                    }
-                } else {
-                    var val = s.toNumber();
-                    if (val != null) { parts[1] = val; }
+            var dot = s.find(".");
+            var numStr = (dot != null) ? s.substring(0, dot) : s;
+            if (numStr != null) {
+                var val = numStr.toNumber();
+                if (val != null) {
+                    parts[i] = val;
                 }
             }
-        } else {
-            var val = s.toNumber();
-            if (val != null) { parts[0] = val; }
+            if (dot != null) {
+                s = s.substring(dot + 1, s.length());
+            } else {
+                s = "";
+            }
         }
         
         return parts;

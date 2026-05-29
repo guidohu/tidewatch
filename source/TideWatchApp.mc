@@ -101,7 +101,9 @@ class TideWatchApp extends Application.AppBase {
             System.println("Upgrading app from " + (lastVersion == null ? "unknown" : lastVersion) + " to " + currentVersion);
             
             // Invalidate legacy formats from prior versions
-            AppStorage.clearTideTimes();
+            Application.Storage.deleteValue("tideTimes");
+            Application.Storage.deleteValue("tideStartTime");
+            Application.Storage.deleteValue("tideInterval");
             AppStorage.clearTideData();
             AppStorage.clearWaveData();
             AppStorage.setDataUpdatedAt(0);
@@ -121,26 +123,7 @@ class TideWatchApp extends Application.AppBase {
      * Retrieves or generates a pseudo-random anonymous user identifier.
      */
     function getOrCreateAnonymousIdentifier() {
-        var userId = AppStorage.getAnonymousUserId();
-        
-        if (userId == null) {
-            var chars = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];
-            var uuid = "";
-            
-            // Generate a 32-character hex string (UUIDv4 style: 8-4-4-4-12)
-            for (var i = 0; i < 32; i++) {
-                if (i == 8 || i == 12 || i == 16 || i == 20) {
-                    uuid += "-";
-                }
-                // Math.rand() is fine for generating a single index 0-15
-                var idx = Math.rand() % 16;
-                uuid += chars[idx];
-            }
-            
-            userId = uuid;
-            AppStorage.setAnonymousUserId(userId);
-        }
-        return userId;
+        return AppStorage.getOrCreateAnonymousUserId();
     }
 
     /**

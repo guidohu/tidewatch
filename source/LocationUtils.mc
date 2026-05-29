@@ -8,10 +8,7 @@ module LocationUtils {
      * @return True if the value is a valid numeric latitude; false otherwise.
      */
     function isValidLatitude(lat as Object?) as Boolean {
-        if (lat == null) {
-            return false;
-        }
-        if (lat instanceof Float || lat instanceof Double || lat instanceof Number) {
+        if (lat != null && lat has :toFloat) {
             var f = lat.toFloat();
             return f >= -90.0 && f <= 90.0;
         }
@@ -24,10 +21,7 @@ module LocationUtils {
      * @return True if the value is a valid numeric longitude; false otherwise.
      */
     function isValidLongitude(lon as Object?) as Boolean {
-        if (lon == null) {
-            return false;
-        }
-        if (lon instanceof Float || lon instanceof Double || lon instanceof Number) {
+        if (lon != null && lon has :toFloat) {
             var f = lon.toFloat();
             return f >= -180.0 && f <= 180.0;
         }
@@ -44,8 +38,7 @@ module LocationUtils {
         if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
             return false;
         }
-        if ((lat instanceof Float || lat instanceof Double || lat instanceof Number) &&
-            (lon instanceof Float || lon instanceof Double || lon instanceof Number)) {
+        if (lat != null && lon != null && lat has :toFloat && lon has :toFloat) {
             return !(lat.toFloat() == 0.0 && lon.toFloat() == 0.0);
         }
         return false;

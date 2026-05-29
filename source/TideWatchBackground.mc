@@ -123,10 +123,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      * Sends a ping request to the proxy reporting uuid and version.
      */
     function makePingRequest() as Void {
-        var uuid = AppStorage.getAnonymousUserId();
-        if (uuid == null) {
-            uuid = "";
-        }
+        var uuid = AppStorage.getOrCreateAnonymousUserId();
         var url = "https://forecast.wakeandsurf.ch/ping";
         var params = {
             "uuid" => uuid,
@@ -210,16 +207,8 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param val The numeric object.
      * @return Float representation of val.
      */
-    function parseFloatSafe(val as Object) as Float {
-        if (val instanceof Float) {
-            return val;
-        } else if (val instanceof Double) {
-            return val.toFloat();
-        } else if (val instanceof Number) {
-            return val.toFloat();
-        } else if (val instanceof Long) {
-            return val.toFloat();
-        } else if (val instanceof String) {
+    function parseFloatSafe(val as Object?) as Float {
+        if (val != null && val has :toFloat) {
             return val.toFloat();
         }
         return 0.0f;
@@ -230,16 +219,8 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param val The numeric object.
      * @return Number representation of val.
      */
-    function parseNumberSafe(val as Object) as Number {
-        if (val instanceof Number) {
-            return val;
-        } else if (val instanceof Float) {
-            return val.toNumber();
-        } else if (val instanceof Double) {
-            return val.toNumber();
-        } else if (val instanceof Long) {
-            return val.toNumber();
-        } else if (val instanceof String) {
+    function parseNumberSafe(val as Object?) as Number {
+        if (val != null && val has :toNumber) {
             return val.toNumber();
         }
         return 0;
