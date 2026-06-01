@@ -2,7 +2,7 @@ import Toybox.Lang;
 
 (:background)
 module Version {
-    const STRING = "1.12.0";
+    const STRING = "1.12.1";
 
     /**
      * Compares two semantic version strings (e.g. "1.1.0" and "1.0.0").
