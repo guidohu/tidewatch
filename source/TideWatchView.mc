@@ -714,7 +714,8 @@ class TideWatchView extends WatchUi.WatchFace {
                             if (!mInLowPowerMode) {
                                 var N = 12;
                                 for (var j = 0; j < N; j++) {
-                                    var ratio = 0.05 + 0.45 * ((N - 1 - j).toFloat() / (N - 1).toFloat());
+                                    var fraction = j.toFloat() / (N - 1).toFloat();
+                                    var ratio = 0.05 + 0.60 * (1.0 - fraction * fraction);
                                     var shadeColor = blendWithBlack(graphColor, ratio);
                                     
                                     var ly1 = lastY + (graphY - lastY) * j.toFloat() / N.toFloat();
@@ -797,7 +798,6 @@ class TideWatchView extends WatchUi.WatchFace {
                 var factor = isFeet ? METERS_TO_FEET : 1.0;
                 var minDisp = mMinH * factor;
                 var maxDisp = mMaxH * factor;
-                var rangeDisp = maxDisp - minDisp;
                 
                 var gridStep = isFeet ? 1.0 : 0.5;
                 var candidates;
