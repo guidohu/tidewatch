@@ -53,12 +53,30 @@ class TideWatchView extends WatchUi.WatchFace {
     var mScreenWidth as Number = 0;
     var mScreenHeight as Number = 0;
     var mScale as Float = 1.0;
+    var mFontAssistantSmall as Graphics.FontDefinition? = null;
+    var mInLowPowerMode as Boolean = false;
 
     /**
      * Constructor. Calls parent WatchFace constructor.
      */
     function initialize() {
         WatchFace.initialize();
+    }
+
+    /**
+     * Terminate hourly/periodic updates when entering low power sleep mode.
+     */
+    function onEnterSleep() as Void {
+        mInLowPowerMode = true;
+        WatchUi.requestUpdate();
+    }
+
+    /**
+     * Restore standard rendering updates when leaving low power sleep mode.
+     */
+    function onExitSleep() as Void {
+        mInLowPowerMode = false;
+        WatchUi.requestUpdate();
     }
 
     /**
@@ -70,6 +88,7 @@ class TideWatchView extends WatchUi.WatchFace {
         mScreenWidth = dc.getWidth();
         mScreenHeight = dc.getHeight();
         mScale = mScreenWidth.toFloat() / SCREEN_WIDTH_REFERENCE;
+        mFontAssistantSmall = WatchUi.loadResource(Rez.Fonts.AssistantSmall) as Graphics.FontDefinition;
     }
 
     /**
@@ -122,7 +141,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // 1. Draw Time/Battery (always rendered with current time)
         drawClock(dc, baseColor, use24Hour);
-        drawBattery(dc, baseColor);
+        if (!mInLowPowerMode) {
+            drawBattery(dc, baseColor);
+        }
 
         // 2. Error Check
         var apiKey = Application.Properties.getValue("StormglassApiKey");
@@ -132,7 +153,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLon = Application.Properties.getValue("GpsLon");
 
         if (!LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
-             if (showDate) {
+             if (showDate || mInLowPowerMode) {
                  drawDateCentered(dc, baseColor);
              }
 
@@ -165,20 +186,28 @@ class TideWatchView extends WatchUi.WatchFace {
             return;
         }
 
-        // Draw Current Tide Height and Date horizontally relative to each other
-        drawTideAndDate(dc, tideColor, baseColor, showDate);
-
-        if (mNextExtremaStr != null) {
-            drawCenteredText(dc, mScreenHeight * 0.67, Graphics.FONT_XTINY, mNextExtremaStr, baseColor);
+        // Draw Date/Day centered just below time
+        if (showDate || mInLowPowerMode) {
+            drawDateCentered(dc, baseColor);
         }
 
         // Swell Section
-        if (showSwellSummary) {
+        if (showSwellSummary && !mInLowPowerMode) {
             drawSwellData(dc, baseColor, hasApiKey);
         }
 
         // Graph Section
         drawGraphs(dc, graphColor, baseColor, showSwellGraph, now);
+
+        // Tide Change Text (drawn on top of the graph with a cutout background)
+        drawTideChangeText(dc, tideColor, baseColor, mScreenHeight * 0.64 + 53 * mScale);
+
+        // Next Extrema (drawn below the graph)
+        if (mNextExtremaStr != null && !mInLowPowerMode) {
+            var nextExtrema = mNextExtremaStr as String;
+            var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+            drawCenteredText(dc, mScreenHeight * 0.81 + 25 * mScale, font, nextExtrema, baseColor);
+        }
 
         // Spot Name or Error
         var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
@@ -189,7 +218,9 @@ class TideWatchView extends WatchUi.WatchFace {
             }
         }
 
-        drawFooter(dc, baseColor, now);
+        if (!mInLowPowerMode) {
+            drawFooter(dc, baseColor, now);
+        }
     }
 
     /**
@@ -466,7 +497,8 @@ class TideWatchView extends WatchUi.WatchFace {
         
         // Draw percentage text
         var percStr = mBattery.toNumber().toString() + "%";
-        dc.drawText(x - (2 * mScale).toNumber(), y, Graphics.FONT_XTINY, percStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+        var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+        dc.drawText(x - (2 * mScale).toNumber(), y, font, percStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Draw battery outline
         var iconX = x + (2 * mScale).toNumber();
@@ -521,27 +553,84 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     /**
-     * Renders current tide elevation value and rising/falling indicator arrow horizontally
-     * aligned alongside day and date text.
+     * Renders current tide elevation value and rising/falling indicator arrow.
      * @param dc The device context.
      * @param tideColor Color for drawing tide numeric indicators.
-     * @param baseColor Color of base text.
-     * @param showDate True to render the adjacent date and day strings.
      */
-    function drawTideAndDate(dc as Dc, tideColor as Number, baseColor as Number, showDate as Boolean) as Void {
-        var numWidth = dc.getTextWidthInPixels(mTideNumStr, Graphics.FONT_NUMBER_MEDIUM);
-        var mWidth = dc.getTextWidthInPixels(mDispUnit, Graphics.FONT_MEDIUM);
-        var startX = (mScreenWidth - (numWidth + mWidth)) / 2;
+    function drawTideChangeText(dc as Dc, tideColor as Number, baseColor as Number, yVal as Float) as Void {
+        var numWidth = dc.getTextWidthInPixels(mTideNumStr, Graphics.FONT_NUMBER_MILD);
+        var mWidth = dc.getTextWidthInPixels(mDispUnit, Graphics.FONT_SMALL);
+        
+        var totalW = numWidth + mWidth;
+        var arrowOffset = 0;
+        var sz = 0;
+        if (!mInLowPowerMode) {
+            arrowOffset = (15 * mScale).toNumber();
+            sz = (8 * mScale).toNumber();
+            totalW += arrowOffset + sz;
+        }
+        var startX = (mScreenWidth - totalW) / 2;
 
+        var fontHeight = dc.getFontHeight(Graphics.FONT_NUMBER_MILD);
+        var padX = (8 * mScale).toNumber();
+        var rectW = totalW + 2 * padX;
+        var rectH = (fontHeight * 0.68).toNumber() + (10 * mScale).toNumber();
+        var rectX = startX - padX;
+        var rectY = (yVal - 5 * mScale) - rectH / 2;
+
+        // Use a BufferedBitmap to isolate the setFill state and prevent breaking subsequent primitives (like drawArrow)
+        if (dc has :setBlendMode && Graphics has :createBufferedBitmap) {
+            dc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
+            
+            var options = {
+                :width => rectW,
+                :height => rectH
+            };
+            
+            var bitmapRef = Graphics.createBufferedBitmap(options);
+            if (bitmapRef != null) {
+                var bufferedBitmap = bitmapRef.get();
+                if (bufferedBitmap != null) {
+                    var bDc = bufferedBitmap.getDc();
+                    if (bDc != null) {
+                        bDc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+                        bDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
+                        bDc.clear();
+                        
+                        bDc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
+                        
+                        if (bDc has :setFill) {
+                            var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
+                            var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+                            // Create the 32-bit ARGB value (140 out of 255 is ~55% opacity)
+                            var alphaColor = (140 << 24) | baseRgb; 
+                            
+                            // setColor strips alpha, so setFill MUST be used
+                            bDc.setFill(alphaColor);
+                        } else {
+                            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.55);
+                            bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
+                        }
+                        
+                        bDc.fillRectangle(0, 0, rectW, rectH);
+                        dc.drawBitmap(rectX, rectY, bufferedBitmap);
+                    }
+                }
+            }
+            dc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+        } else {
+            // Legacy hardware fallback path
+            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.55);
+            dc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillRectangle(rectX, rectY, rectW, rectH);
+        }
+
+        var textY = yVal - 5 * mScale;
         dc.setColor(tideColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(startX, mScreenHeight * 0.44, Graphics.FONT_NUMBER_MEDIUM, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(startX + numWidth, mScreenHeight * 0.44, Graphics.FONT_MEDIUM, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        drawArrow(dc, (startX + numWidth + mWidth + 15 * mScale).toNumber(), (mScreenHeight * 0.44).toNumber(), mIsRising);
-
-        if (showDate) {
-            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(startX - 4 * mScale, (mScreenHeight * 0.38) + 1, Graphics.FONT_XTINY, getDate(), Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + numWidth + mWidth + 30 * mScale, (mScreenHeight * 0.38) + 1, Graphics.FONT_XTINY, getDay(), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX, textY, Graphics.FONT_NUMBER_MILD, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX + numWidth, textY, Graphics.FONT_SMALL, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (!mInLowPowerMode) {
+            drawArrow(dc, (startX + numWidth + mWidth + arrowOffset).toNumber(), textY.toNumber(), mIsRising);
         }
     }
 
@@ -552,14 +641,15 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param hasApiKey True if a Stormglass API key is supplied.
      */
     function drawSwellData(dc as Dc, baseColor as Number, hasApiKey as Boolean) as Void {
+        var swellY = mScreenHeight * 0.45 + 15 * mScale;
         if (!hasApiKey) {
-            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
+            drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
         } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
-            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
+            drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "stormglass key invalid", Graphics.COLOR_RED);
         } else if (mWeatherError == DataKeys.ERROR_QUOTA_EXCEEDED) {
-            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "swell API limit reached", Graphics.COLOR_RED);
+            drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "swell API limit reached", Graphics.COLOR_RED);
         } else if (mWeatherError == DataKeys.ERROR_OTHER) {
-            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
+            drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "swell sync error", Graphics.COLOR_RED);
         } else if (mValidSwells.size() > 0) {
             var totalSwellW = 0;
             var arrowW = (10 * mScale).toNumber();
@@ -571,7 +661,7 @@ class TideWatchView extends WatchUi.WatchFace {
             totalSwellW += (mValidSwells.size() - 1) * sepW;
 
             var curX = (mScreenWidth - totalSwellW) / 2;
-            var curY = (mScreenHeight * 0.57).toNumber();
+            var curY = swellY.toNumber();
             for (var i = 0; i < mValidSwells.size(); i++) {
                 var sv = mValidSwells[i] as Array;
                 drawSwellArrow(dc, (curX + arrowW/2).toNumber(), curY, sv[2] as Float);
@@ -586,7 +676,7 @@ class TideWatchView extends WatchUi.WatchFace {
                 }
             }
         } else {
-            drawCenteredText(dc, mScreenHeight * 0.58, Graphics.FONT_XTINY, "no swell data available", baseColor);
+            drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "no swell data available", baseColor);
         }
     }
 
@@ -601,13 +691,61 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function drawGraphs(dc as Dc, graphColor as Number, baseColor as Number, showSwellGraph as Boolean, now as Number) as Void {
         if (mMaxH > mMinH) {
-            var graphY = mScreenHeight * 0.88;
+            var graphY = mScreenHeight * 0.73;
             var graphHeight = mScreenHeight * 0.18;
-            var graphMargin = mScreenWidth * 0.15;
-            var drawWidth = mScreenWidth - 2 * graphMargin;
+            var graphMargin = 0.0;
+            var drawWidth = mScreenWidth;
+
+            // Tide Graph
+            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
+            var lastX = -1, lastY = -1;
+            if (mcTideData != null) {
+                var tDataArray = mcTideData as Array;
+                for (var i = 0; i < tDataArray.size(); i++) {
+                    var p = tDataArray[i] as Array;
+                    var tTs = p[0] as Number;
+                    var x = graphMargin + drawWidth * (tTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
+                    var hVal = p[1];
+                    if (hVal != null) {
+                        var hFloat = convertHeight(hVal as Number, mcTideUnitApi, DataKeys.UNIT_METER);
+                        var y = graphY - graphHeight * (hFloat - mMinH) / (mMaxH - mMinH);
+                        if (lastX >= 0 && (x >= -50 && x <= mScreenWidth + 50)) {
+                            // Draw shade under the line (fades from solid to transparent towards the bottom)
+                            if (!mInLowPowerMode) {
+                                var N = 12;
+                                for (var j = 0; j < N; j++) {
+                                    var ratio = 0.05 + 0.45 * ((N - 1 - j).toFloat() / (N - 1).toFloat());
+                                    var shadeColor = blendWithBlack(graphColor, ratio);
+                                    
+                                    var ly1 = lastY + (graphY - lastY) * j.toFloat() / N.toFloat();
+                                    var ly2 = lastY + (graphY - lastY) * (j + 1).toFloat() / N.toFloat();
+                                    var ry1 = y + (graphY - y) * j.toFloat() / N.toFloat();
+                                    var ry2 = y + (graphY - y) * (j + 1).toFloat() / N.toFloat();
+                                    
+                                    dc.setColor(shadeColor, Graphics.COLOR_TRANSPARENT);
+                                    dc.fillPolygon([
+                                        [lastX, ly1.toNumber()],
+                                        [x.toNumber(), ry1.toNumber()],
+                                        [x.toNumber(), ry2.toNumber()],
+                                        [lastX, ly2.toNumber()]
+                                    ] as Array<[Lang.Numeric, Lang.Numeric]>);
+                                }
+                            }
+
+                            // Draw the actual line on top
+                            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
+                            dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
+                            dc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
+                        }
+                        lastX = x.toNumber(); lastY = y.toNumber();
+                    } else {
+                        lastX = -1; // Gap in data
+                    }
+                }
+            }
 
             // Swell Graph
-            if (showSwellGraph && mcWaveData != null) {
+            if (!mInLowPowerMode && showSwellGraph && mcWaveData != null) {
                 var colors = [baseColor, baseColor, baseColor];
                 for (var s = 0; s < 2; s++) {
                     var lastSX = -1, lastSY = -1;
@@ -652,27 +790,103 @@ class TideWatchView extends WatchUi.WatchFace {
                 }
             }
 
-            // Tide Graph
-            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
-            var lastX = -1, lastY = -1;
-            if (mcTideData != null) {
-                var tDataArray = mcTideData as Array;
-                for (var i = 0; i < tDataArray.size(); i++) {
-                    var p = tDataArray[i] as Array;
-                    var tTs = p[0] as Number;
-                    var x = graphMargin + drawWidth * (tTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
-                    var hVal = p[1];
-                    if (hVal != null) {
-                        var hFloat = convertHeight(hVal as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                        var y = graphY - graphHeight * (hFloat - mMinH) / (mMaxH - mMinH);
-                        if (lastX >= 0 && (x >= -50 && x <= mScreenWidth + 50)) {
-                            dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
-                            dc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
-                        }
-                        lastX = x.toNumber(); lastY = y.toNumber();
-                    } else {
-                        lastX = -1; // Gap in data
+            if (!mInLowPowerMode) {
+                // Grid Lines (either meters or feet depending on settings)
+                var tideUnits = Application.Properties.getValue("TideUnits");
+                var isFeet = (tideUnits == DataKeys.SETTING_UNIT_FEET);
+                var factor = isFeet ? METERS_TO_FEET : 1.0;
+                var minDisp = mMinH * factor;
+                var maxDisp = mMaxH * factor;
+                var rangeDisp = maxDisp - minDisp;
+                
+                var gridStep = isFeet ? 1.0 : 0.5;
+                var candidates;
+                if (isFeet) {
+                    candidates = [1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 10.0, 15.0, 20.0, 25.0, 50.0] as Array<Float>;
+                } else {
+                    candidates = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 10.0, 20.0] as Array<Float>;
+                }
+                
+                for (var idx = 0; idx < candidates.size(); idx++) {
+                    var stepVal = candidates[idx];
+                    var startGrid = (Math.ceil(minDisp / stepVal) * stepVal).toFloat();
+                    var labelCount = 0;
+                    for (var val = startGrid; val < maxDisp; val += stepVal) {
+                        labelCount++;
                     }
+                    if (labelCount <= 3) {
+                        gridStep = stepVal;
+                        break;
+                    }
+                }
+                
+                var startGrid = (Math.ceil(minDisp / gridStep) * gridStep).toFloat();
+                var unitStr = isFeet ? "ft" : "m";
+                var gridLabels = [];
+                
+                for (var val = startGrid; val < maxDisp; val += gridStep) {
+                    var hMeter = val / factor;
+                    var gy = graphY - graphHeight * (hMeter - mMinH) / (mMaxH - mMinH);
+                    
+                    dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+                    var dashLen = (4 * mScale).toNumber();
+                    var gapLen = (4 * mScale).toNumber();
+                    if (dashLen < 2) { dashLen = 2; }
+                    if (gapLen < 2) { gapLen = 2; }
+                    for (var gx = 0; gx < mScreenWidth; gx += dashLen + gapLen) {
+                        var endX = gx + dashLen;
+                        if (endX > mScreenWidth) { endX = mScreenWidth; }
+                        dc.drawLine(gx, gy.toNumber(), endX, gy.toNumber());
+                    }
+                    
+                    var formatStr = (gridStep.toFloat() - gridStep.toNumber().toFloat()) > 0.01 ? "%.1f" : "%.0f";
+                    var labelText = val.format(formatStr) + unitStr;
+                    gridLabels.add([gy.toNumber(), labelText]);
+                }
+
+                // Draw vertical line where the date is changing (midnight)
+                var info = Gregorian.info(new Time.Moment(now), Time.FORMAT_SHORT);
+                var todayMidnight = Gregorian.moment({
+                    :year => info.year,
+                    :month => info.month,
+                    :day => info.day,
+                    :hour => 0,
+                    :minute => 0,
+                    :second => 0
+                }).value();
+                
+                var dateChangeTs = null;
+                if (todayMidnight >= mMinT && todayMidnight <= mMaxT) {
+                    dateChangeTs = todayMidnight;
+                } else if (todayMidnight + 86400 >= mMinT && todayMidnight + 86400 <= mMaxT) {
+                    dateChangeTs = todayMidnight + 86400;
+                } else if (todayMidnight - 86400 >= mMinT && todayMidnight - 86400 <= mMaxT) {
+                    dateChangeTs = todayMidnight - 86400;
+                }
+                
+                if (dateChangeTs != null) {
+                    var cx = graphMargin + drawWidth * (dateChangeTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
+                    dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+                    var dashLen = (4 * mScale).toNumber();
+                    var gapLen = (4 * mScale).toNumber();
+                    if (dashLen < 2) { dashLen = 2; }
+                    if (gapLen < 2) { gapLen = 2; }
+                    var startY = graphY - graphHeight;
+                    for (var gy = startY; gy < graphY; gy += dashLen + gapLen) {
+                        var endY = gy + dashLen;
+                        if (endY > graphY) { endY = graphY; }
+                        dc.drawLine(cx.toNumber(), gy.toNumber(), cx.toNumber(), endY.toNumber());
+                    }
+                }
+
+                // Draw grid labels on the right side of the watch face on top of everything
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+                var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+                for (var i = 0; i < gridLabels.size(); i++) {
+                    var item = gridLabels[i] as Array;
+                    var gy = item[0] as Number;
+                    var labelText = item[1] as String;
+                    dc.drawText(mScreenWidth - (10 * mScale).toNumber(), gy, font, labelText, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
                 }
             }
 
@@ -696,6 +910,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
+        var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
         if (showSyncError) {
             var errMsg = "sync error";
             var errColor = Graphics.COLOR_RED;
@@ -704,13 +919,13 @@ class TideWatchView extends WatchUi.WatchFace {
             } else if (mSyncError != null && mSyncError <= DataKeys.ERROR_PHONE_CONN_MAX && mSyncError > DataKeys.ERROR_PHONE_CONN_MIN) {
                 errMsg = "no connection";
             }
-            drawCenteredText(dc, mScreenHeight * 0.95, Graphics.FONT_XTINY, errMsg, errColor);
+            drawCenteredText(dc, mScreenHeight * 0.95, font, errMsg, errColor);
         } else if (mcSpotName != null) {
             var nameColor = baseColor;
             if (isStale || mSyncError != null) {
                 nameColor = Graphics.COLOR_YELLOW;
             }
-            drawCenteredText(dc, mScreenHeight * 0.95, Graphics.FONT_XTINY, mcSpotName as String, nameColor);
+            drawCenteredText(dc, mScreenHeight * 0.95, font, mcSpotName as String, nameColor);
         }
     }
 
@@ -862,4 +1077,52 @@ class TideWatchView extends WatchUi.WatchFace {
         }
         return valFloat;
     }
+
+    /**
+     * Blends a color with black to simulate opacity/transparency.
+     * @param color The original 24-bit RGB color.
+     * @param ratio The blending ratio (0.0 = completely black/transparent, 1.0 = original color).
+     * @return The blended color integer.
+     */
+    function blendWithBlack(color as Number, ratio as Float) as Number {
+        if (ratio <= 0.0) { return 0x000000; }
+        if (ratio >= 1.0) { return color; }
+        
+        var rgb = getRgbFromColor(color);
+        var r = (rgb[0] * ratio).toNumber();
+        var g = (rgb[1] * ratio).toNumber();
+        var b = (rgb[2] * ratio).toNumber();
+        
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * Resolves standard Garmin system colors and custom hex colors to RGB components.
+     */
+    function getRgbFromColor(color as Number) as Array<Number> {
+        if (color == Graphics.COLOR_WHITE) { return [255, 255, 255]; }
+        if (color == Graphics.COLOR_LT_GRAY) { return [170, 170, 170]; }
+        if (color == Graphics.COLOR_DK_GRAY) { return [85, 85, 85]; }
+        if (color == Graphics.COLOR_BLACK) { return [0, 0, 0]; }
+        if (color == Graphics.COLOR_RED) { return [255, 0, 0]; }
+        if (color == Graphics.COLOR_DK_RED) { return [170, 0, 0]; }
+        if (color == Graphics.COLOR_ORANGE) { return [255, 85, 0]; }
+        if (color == Graphics.COLOR_YELLOW) { return [255, 255, 0]; }
+        if (color == Graphics.COLOR_GREEN) { return [0, 255, 0]; }
+        if (color == Graphics.COLOR_DK_GREEN) { return [0, 170, 0]; }
+        if (color == Graphics.COLOR_BLUE) { return [0, 0, 255]; }
+        if (color == Graphics.COLOR_DK_BLUE) { return [0, 0, 170]; }
+        if (color == Graphics.COLOR_PURPLE) { return [170, 0, 255]; }
+        if (color == Graphics.COLOR_PINK) { return [255, 0, 170]; }
+        
+        var r = (color >> 16) & 0xFF;
+        var g = (color >> 8) & 0xFF;
+        var b = color & 0xFF;
+        return [r, g, b];
+    }
+}
+
+class AlphaDrawable {
+    function setAlpha(alpha as Number) as Void {}
+    function setFill(color as Number) as Void {}
 }
