@@ -205,7 +205,7 @@ class TideWatchView extends WatchUi.WatchFace {
         // Next Extrema (drawn below the graph)
         if (mNextExtremaStr != null && !mInLowPowerMode) {
             var nextExtrema = mNextExtremaStr as String;
-            var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+            var font = Graphics.FONT_XTINY;
             drawCenteredText(dc, mScreenHeight * 0.81 + 25 * mScale, font, nextExtrema, baseColor);
         }
 
