@@ -394,41 +394,46 @@ class AboutMenu extends WatchUi.Menu2 {
     function initialize() {
         Menu2.initialize({:title=>"About"});
         
-        var lastSync = AppStorage.getDataUpdatedAt();
-        var lastSyncStr = "Never";
-        if (lastSync > 0) {
-            var info = Gregorian.info(new Time.Moment(lastSync), Time.FORMAT_SHORT);
-            var use24Hour = System.getDeviceSettings().is24Hour;
-            var hour = info.hour;
-            var amPm = "";
-            if (!use24Hour) {
-                if (hour >= 12) {
-                    amPm = " PM";
-                    if (hour > 12) {
-                        hour -= 12;
-                    }
-                } else {
-                    amPm = " AM";
-                    if (hour == 0) {
-                        hour = 12;
-                    }
-                }
-            }
-            lastSyncStr = Lang.format("$1$-$2$-$3$ $4$:$5$$6$", [
-                info.year,
-                info.month.format("%02d"),
-                info.day.format("%02d"),
-                hour.format(use24Hour ? "%02d" : "%d"),
-                info.min.format("%02d"),
-                amPm
-            ]);
-        }
+        var lastSyncStr = formatTime(AppStorage.getDataUpdatedAt(), "Never");
+        var nextSyncStr = formatTime(AppStorage.getNextSyncTime(), "None");
         
         addItem(new WatchUi.MenuItem("Version", Version.STRING, "version", {}));
         addItem(new WatchUi.MenuItem("Last Sync", lastSyncStr, "sync", {}));
+        addItem(new WatchUi.MenuItem("Next Sync", nextSyncStr, "next_sync", {}));
         addItem(new WatchUi.MenuItem("openwaters.io", "used for tide data", "ow", {}));
         addItem(new WatchUi.MenuItem("stormglass.io", "used for weather data", "stormglass", {}));
         addItem(new WatchUi.MenuItem("bigdatacloud.com", "used for geo data", "bigdatacloud", {}));
+    }
+
+    function formatTime(timestamp as Number, defaultStr as String) as String {
+        if (timestamp <= 0) {
+            return defaultStr;
+        }
+        var info = Gregorian.info(new Time.Moment(timestamp), Time.FORMAT_SHORT);
+        var use24Hour = System.getDeviceSettings().is24Hour;
+        var hour = info.hour;
+        var amPm = "";
+        if (!use24Hour) {
+            if (hour >= 12) {
+                amPm = " PM";
+                if (hour > 12) {
+                    hour -= 12;
+                }
+            } else {
+                amPm = " AM";
+                if (hour == 0) {
+                    hour = 12;
+                }
+            }
+        }
+        return Lang.format("$1$-$2$-$3$ $4$:$5$$6$", [
+            info.year,
+            info.month.format("%02d"),
+            info.day.format("%02d"),
+            hour.format(use24Hour ? "%02d" : "%d"),
+            info.min.format("%02d"),
+            amPm
+        ]);
     }
 }
 

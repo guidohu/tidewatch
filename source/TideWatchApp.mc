@@ -347,6 +347,7 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
             ]));
             
             Background.registerForTemporalEvent(nextTime);
+            AppStorage.setNextSyncTime(nextTime.value());
         } catch (e) {
             System.println("Background registration failed: " + e.getErrorMessage()); 
         }

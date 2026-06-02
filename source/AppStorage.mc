@@ -186,6 +186,18 @@ module AppStorage {
         Application.Storage.setValue("tideExtrema", null);
     }
 
+    // Next Sync Time
+    public function getNextSyncTime() as Number {
+        var val = Application.Storage.getValue("nextSyncTime");
+        return (val instanceof Number) ? val : 0;
+    }
+    public function setNextSyncTime(val as Number) as Void {
+        Application.Storage.setValue("nextSyncTime", val);
+    }
+    public function clearNextSyncTime() as Void {
+        Application.Storage.deleteValue("nextSyncTime");
+    }
+
     // Bulk actions
     public function clearCache() as Void {
         clearTideData();
@@ -198,6 +210,7 @@ module AppStorage {
         clearWeatherUpdatedAt();
         clearTideTimelineUpdatedAt();
         clearTideExtremesUpdatedAt();
+        clearNextSyncTime();
         setDataUpdatedAt(0);
     }
 }
