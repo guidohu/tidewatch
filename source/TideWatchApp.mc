@@ -179,7 +179,7 @@ class TideWatchApp extends Application.AppBase {
         }
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
-        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
+        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : true;
         var kpayChanged = initializeKPay(enableKPay);
 
         var curDatum = Application.Properties.getValue("TideDatum");
@@ -220,7 +220,7 @@ class TideWatchApp extends Application.AppBase {
         mLastApiKey = Application.Properties.getValue("StormglassApiKey");
 
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
-        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : false;
+        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : true;
         initializeKPay(enableKPay);
 
         if (System has :ServiceDelegate) {
@@ -295,7 +295,8 @@ class TideWatchApp extends Application.AppBase {
     function getServiceDelegate() {
         System.println("TideWatch Background service: getServiceDelegate");
         var enableKPayVal = Application.Properties.getValue("EnableKPay");
-        if (enableKPayVal != null && enableKPayVal as Boolean == true) {
+        var enableKPay = (enableKPayVal != null) ? enableKPayVal as Boolean : true;
+        if (enableKPay) {
             return [ new KPay.KPayBackgroundServiceDelegate(TideWatchBackground, 0) ] as [System.ServiceDelegate];
         } else {
             return [ new TideWatchBackground(null) ] as [System.ServiceDelegate];

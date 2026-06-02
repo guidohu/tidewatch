@@ -133,7 +133,7 @@ class TideWatchView extends WatchUi.WatchFace {
         updateCacheAndCalculations(now, targetTideUnit, targetSwellUnit, use24Hour);
 
         var tideColor = getColorFromIndex(tideColorIdx != null ? tideColorIdx as Number : 0);
-        var graphColor = getColorFromIndex(graphColorIdx != null ? graphColorIdx as Number : 0);
+        var graphColor = getColorFromIndex(graphColorIdx != null ? graphColorIdx as Number : 10);
         var baseColor = getColorFromIndex(baseColorIdx != null ? baseColorIdx as Number : 4);
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
@@ -602,13 +602,13 @@ class TideWatchView extends WatchUi.WatchFace {
                         if (bDc has :setFill) {
                             var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
                             var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-                            // Create the 32-bit ARGB value (140 out of 255 is ~55% opacity)
-                            var alphaColor = (140 << 24) | baseRgb; 
+                            // Create the 32-bit ARGB value (102 out of 255 is ~40% opacity)
+                            var alphaColor = (102 << 24) | baseRgb; 
                             
                             // setColor strips alpha, so setFill MUST be used
                             bDc.setFill(alphaColor);
                         } else {
-                            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.55);
+                            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
                             bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
                         }
                         
@@ -620,7 +620,7 @@ class TideWatchView extends WatchUi.WatchFace {
             dc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
         } else {
             // Legacy hardware fallback path
-            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.55);
+            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
             dc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(rectX, rectY, rectW, rectH);
         }

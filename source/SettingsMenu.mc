@@ -72,7 +72,7 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         }
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.StormglassApiKeyTitle), apiKeyStr, "StormglassApiKey", {}));
         
-        addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.ExperimentsTitle), "", "Experiments", {}));
+        // addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.ExperimentsTitle), "", "Experiments", {}));
         
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.SyncTitle), "", "ForceSync", {}));
         
@@ -239,8 +239,8 @@ class TideWatchSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             item.setSubLabel(TideWatchSettingsMenu.loadStr(Rez.Strings.SyncExecuting));
             TideWatchSettingsMenu.triggerImmediateSync(false);
             WatchUi.requestUpdate();
-        } else if (id.equals("Experiments")) {
-            WatchUi.pushView(new ExperimentsMenu(), new ExperimentsMenuDelegate(), WatchUi.SLIDE_LEFT);
+        // } else if (id.equals("Experiments")) {
+        //     WatchUi.pushView(new ExperimentsMenu(), new ExperimentsMenuDelegate(), WatchUi.SLIDE_LEFT);
         } else if (id.equals("About")) {
             WatchUi.pushView(new AboutMenu(), new AboutMenuDelegate(), WatchUi.SLIDE_LEFT);
         } else if (item instanceof WatchUi.ToggleMenuItem) {
@@ -367,6 +367,7 @@ class TimeFormatMenu extends WatchUi.Menu2 {
     }
 }
 
+/*
 class ExperimentsMenu extends WatchUi.Menu2 {
     function initialize() {
         Menu2.initialize({:title=>TideWatchSettingsMenu.loadStr(Rez.Strings.ExperimentsTitle)});
@@ -389,6 +390,7 @@ class ExperimentsMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
     }
 }
+*/
 
 class AboutMenu extends WatchUi.Menu2 {
     function initialize() {
