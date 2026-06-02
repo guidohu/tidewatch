@@ -132,9 +132,15 @@ class TideWatchView extends WatchUi.WatchFace {
 
         updateCacheAndCalculations(now, targetTideUnit, targetSwellUnit, use24Hour);
 
-        var tideColor = getColorFromIndex(tideColorIdx != null ? tideColorIdx as Number : 0);
+        var tideColor = getColorFromIndex(tideColorIdx != null ? tideColorIdx as Number : 10);
         var graphColor = getColorFromIndex(graphColorIdx != null ? graphColorIdx as Number : 10);
         var baseColor = getColorFromIndex(baseColorIdx != null ? baseColorIdx as Number : 4);
+
+        if (mInLowPowerMode) {
+            tideColor = blendWithBlack(tideColor, 0.75);
+            graphColor = blendWithBlack(graphColor, 0.75);
+            baseColor = blendWithBlack(baseColor, 0.75);
+        }
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
@@ -182,6 +188,9 @@ class TideWatchView extends WatchUi.WatchFace {
                 }
             }
             var errColor = mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY;
+            if (mInLowPowerMode) {
+                errColor = blendWithBlack(errColor, 0.75);
+            }
             drawCenteredText(dc, mScreenHeight / 2, Graphics.FONT_XTINY, msg, errColor);
             return;
         }
@@ -200,13 +209,13 @@ class TideWatchView extends WatchUi.WatchFace {
         drawGraphs(dc, graphColor, baseColor, showSwellGraph, now);
 
         // Tide Change Text (drawn on top of the graph with a cutout background)
-        drawTideChangeText(dc, tideColor, baseColor, mScreenHeight * 0.64 + 53 * mScale);
+        drawTideChangeText(dc, tideColor, baseColor, mScreenHeight * 0.64 + 58 * mScale);
 
         // Next Extrema (drawn below the graph)
         if (mNextExtremaStr != null && !mInLowPowerMode) {
             var nextExtrema = mNextExtremaStr as String;
             var font = Graphics.FONT_XTINY;
-            drawCenteredText(dc, mScreenHeight * 0.81 + 25 * mScale, font, nextExtrema, baseColor);
+            drawCenteredText(dc, mScreenHeight * 0.81 + 30 * mScale, font, nextExtrema, baseColor);
         }
 
         // Spot Name or Error
@@ -243,7 +252,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         var currentHash = (tideUnits == null ? 0 : tideUnits as Number) +
             ((swellUnits == null ? 0 : swellUnits as Number) << 2) +
-            ((tideColorIdx == null ? 0 : tideColorIdx as Number) << 4) +
+            ((tideColorIdx == null ? 10 : tideColorIdx as Number) << 4) +
             ((graphColorIdx == null ? 0 : graphColorIdx as Number) << 8) +
             ((baseColorIdx == null ? 0 : baseColorIdx as Number) << 12) +
             ((showSwellGraph == true ? 1 : 0) << 16) +
@@ -327,7 +336,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         var dispHeight = convertHeight((mCurrentHeight * 100).toNumber(), DataKeys.UNIT_METER, targetTideUnit);
         mDispUnit = (targetTideUnit == DataKeys.UNIT_FEET) ? "ft" : "m";
-        mTideNumStr = dispHeight.format("%.2f");
+        mTideNumStr = (targetTideUnit == DataKeys.UNIT_FEET) ? dispHeight.format("%.1f") : dispHeight.format("%.2f");
         
         return currWaveIdx;
     }
@@ -349,7 +358,8 @@ class TideWatchView extends WatchUi.WatchFace {
                     var hourAmPm = formatHourAmPm(extInfo.hour, use24Hour, false);
                     var extTimeStr = Lang.format("$1$:$2$$3$", [hourAmPm[0].format(use24Hour ? "%02d" : "%d"), extInfo.min.format("%02d"), hourAmPm[1]]);
                     var dispExtH = convertHeight(rawExtH, mcTideUnitApi, targetTideUnit);
-                    mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format("%.2f"), mDispUnit, extTimeStr]);
+                    var formatStr = (targetTideUnit == DataKeys.UNIT_FEET) ? "%.1f" : "%.2f";
+                    mNextExtremaStr = Lang.format("$1$: $2$$3$ $4$", [extType, dispExtH.format(formatStr), mDispUnit, extTimeStr]);
                     break;
                 }
             }
@@ -527,7 +537,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         
-        var timeY = mScreenHeight * 0.24;
+        var timeY = mScreenHeight * 0.24 - 5 * mScale;
         if (clockAmPm.length() > 0) {
             var timeWidth = dc.getTextWidthInPixels(timeStr, Graphics.FONT_NUMBER_HOT);
             var amPmWidth = dc.getTextWidthInPixels(clockAmPm, Graphics.FONT_XTINY);
@@ -549,7 +559,7 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function drawDateCentered(dc as Dc, baseColor as Number) as Void {
         var dateStr = getDay() + ", " + getDate();
-        drawCenteredText(dc, mScreenHeight * 0.38, Graphics.FONT_XTINY, dateStr, baseColor);
+        drawCenteredText(dc, mScreenHeight * 0.38 - 5 * mScale, Graphics.FONT_XTINY, dateStr, baseColor);
     }
 
     /**
@@ -641,7 +651,7 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param hasApiKey True if a Stormglass API key is supplied.
      */
     function drawSwellData(dc as Dc, baseColor as Number, hasApiKey as Boolean) as Void {
-        var swellY = mScreenHeight * 0.45 + 15 * mScale;
+        var swellY = mScreenHeight * 0.45 + 5 * mScale;
         if (!hasApiKey) {
             drawCenteredText(dc, swellY, Graphics.FONT_XTINY, "no stormglass.io key", baseColor);
         } else if (mWeatherError == DataKeys.ERROR_INVALID_KEY) {
@@ -691,7 +701,7 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function drawGraphs(dc as Dc, graphColor as Number, baseColor as Number, showSwellGraph as Boolean, now as Number) as Void {
         if (mMaxH > mMinH) {
-            var graphY = mScreenHeight * 0.73 - 10 * mScale;
+            var graphY = mScreenHeight * 0.73 - 20 * mScale;
             var graphHeight = mScreenHeight * 0.18;
             var graphMargin = 0.0;
             var drawWidth = mScreenWidth;
@@ -893,7 +903,8 @@ class TideWatchView extends WatchUi.WatchFace {
             // Current Time Marker (using dynamic 'now' so marker moves!)
             var nowX = graphMargin + drawWidth * (now - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
             if (nowX >= 0 && nowX <= mScreenWidth) {
-                dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+                var markerColor = mInLowPowerMode ? blendWithBlack(Graphics.COLOR_RED, 0.75) : Graphics.COLOR_RED;
+                dc.setColor(markerColor, Graphics.COLOR_TRANSPARENT);
                 var markerY = graphY - graphHeight * (mCurrentHeight - mMinH) / (mMaxH - mMinH);
                 dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * mScale).toNumber());
             }
