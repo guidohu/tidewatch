@@ -691,7 +691,7 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function drawGraphs(dc as Dc, graphColor as Number, baseColor as Number, showSwellGraph as Boolean, now as Number) as Void {
         if (mMaxH > mMinH) {
-            var graphY = mScreenHeight * 0.73;
+            var graphY = mScreenHeight * 0.73 - 10 * mScale;
             var graphHeight = mScreenHeight * 0.18;
             var graphMargin = 0.0;
             var drawWidth = mScreenWidth;
