@@ -571,14 +571,9 @@ class TideWatchView extends WatchUi.WatchFace {
         var numWidth = dc.getTextWidthInPixels(mTideNumStr, Graphics.FONT_NUMBER_MILD);
         var mWidth = dc.getTextWidthInPixels(mDispUnit, Graphics.FONT_SMALL);
         
-        var totalW = numWidth + mWidth;
-        var arrowOffset = 0;
-        var sz = 0;
-        if (!mInLowPowerMode) {
-            arrowOffset = (15 * mScale).toNumber();
-            sz = (8 * mScale).toNumber();
-            totalW += arrowOffset + sz;
-        }
+        var arrowOffset = (15 * mScale).toNumber();
+        var sz = (8 * mScale).toNumber();
+        var totalW = numWidth + mWidth + arrowOffset + sz;
         var startX = (mScreenWidth - totalW) / 2;
 
         var fontHeight = dc.getFontHeight(Graphics.FONT_NUMBER_MILD);
@@ -636,12 +631,11 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         var textY = yVal - 5 * mScale;
-        dc.setColor(tideColor, Graphics.COLOR_TRANSPARENT);
+        var textClr = mInLowPowerMode ? baseColor : tideColor;
+        dc.setColor(textClr, Graphics.COLOR_TRANSPARENT);
         dc.drawText(startX, textY, Graphics.FONT_NUMBER_MILD, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.drawText(startX + numWidth, textY, Graphics.FONT_SMALL, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        if (!mInLowPowerMode) {
-            drawArrow(dc, (startX + numWidth + mWidth + arrowOffset).toNumber(), textY.toNumber(), mIsRising);
-        }
+        drawArrow(dc, (startX + numWidth + mWidth + arrowOffset).toNumber(), textY.toNumber(), mIsRising, baseColor);
     }
 
     /**
@@ -947,15 +941,23 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param y Vertical center coordinate.
      * @param isRising True for up (rising); false for down (falling).
      */
-    function drawArrow(dc as Dc, x as Number, y as Number, isRising as Boolean) as Void {
+    function drawArrow(dc as Dc, x as Number, y as Number, isRising as Boolean, baseColor as Number) as Void {
         var sz = (8 * mScale).toNumber();
         var pts;
         
+        if (mInLowPowerMode) {
+            dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
+        } else {
+            if (isRising) {
+                dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_TRANSPARENT);
+            } else {
+                dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+            }
+        }
+
         if (isRising) {
-            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_TRANSPARENT);
             pts = [[x, y - sz], [x - sz, y + sz], [x + sz, y + sz]]; // Up Arrow
         } else {
-            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
             pts = [[x, y + sz], [x - sz, y - sz], [x + sz, y - sz]]; // Down Arrow
         }
         dc.fillPolygon(pts as Array<[Lang.Numeric, Lang.Numeric]>);
