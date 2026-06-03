@@ -137,8 +137,8 @@ class TideWatchView extends WatchUi.WatchFace {
         var baseColor = getColorFromIndex(baseColorIdx != null ? baseColorIdx as Number : 4);
 
         if (mInLowPowerMode) {
-            tideColor = blendWithBlack(tideColor, 0.85);
-            graphColor = blendWithBlack(graphColor, 0.85);
+            tideColor = blendWithBlack(tideColor, 0.95);
+            graphColor = blendWithBlack(graphColor, 0.95);
             baseColor = blendWithBlack(baseColor, 0.85);
         }
 
@@ -189,7 +189,7 @@ class TideWatchView extends WatchUi.WatchFace {
             }
             var errColor = mSyncError != null ? Graphics.COLOR_RED : Graphics.COLOR_LT_GRAY;
             if (mInLowPowerMode) {
-                errColor = blendWithBlack(errColor, 0.85);
+                errColor = blendWithBlack(errColor, 0.95);
             }
             drawCenteredText(dc, mScreenHeight / 2, Graphics.FONT_XTINY, msg, errColor);
             return;
@@ -903,7 +903,7 @@ class TideWatchView extends WatchUi.WatchFace {
             // Current Time Marker (using dynamic 'now' so marker moves!)
             var nowX = graphMargin + drawWidth * (now - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
             if (nowX >= 0 && nowX <= mScreenWidth) {
-                var markerColor = mInLowPowerMode ? blendWithBlack(Graphics.COLOR_RED, 0.85) : Graphics.COLOR_RED;
+                var markerColor = mInLowPowerMode ? blendWithBlack(Graphics.COLOR_RED, 0.95) : Graphics.COLOR_RED;
                 dc.setColor(markerColor, Graphics.COLOR_TRANSPARENT);
                 var markerY = graphY - graphHeight * (mCurrentHeight - mMinH) / (mMaxH - mMinH);
                 dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * mScale).toNumber());
