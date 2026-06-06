@@ -95,10 +95,5 @@
         <setting propertyKey="@Properties.StormglassApiKey" title="@Strings.StormglassApiKeyTitle" prompt="@Strings.StormglassApiKeyPrompt">
             <settingConfig type="alphaNumeric" />
         </setting>
-        <group id="Experiments" title="@Strings.ExperimentsTitle">
-            <setting propertyKey="@Properties.EnableKPay" title="@Strings.EnableKPayTitle">
-                <settingConfig type="boolean" />
-            </setting>
-        </group>
     </settings>
 </resources>
