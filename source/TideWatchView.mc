@@ -21,6 +21,11 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastDataUpdatedAt as Number = 0;
     var mLastSyncAttemptAt as Number = 0;
 
+    var mCachedGraphBitmap as Graphics.BufferedBitmap? = null;
+    var mLastGraphUpdateMinute as Number = -1;
+    var mLastPowerMode as Boolean = false;
+    var mLastGraphHash as Number = 0;
+
     var mBattery as Float = 0.0;
 
     var mCurrentHeight as Float = 0.0;
@@ -699,9 +704,61 @@ class TideWatchView extends WatchUi.WatchFace {
             var graphHeight = mScreenHeight * 0.18;
             var graphMargin = 0.0;
             var drawWidth = mScreenWidth;
+            
+            var currentMinute = (now / 60) / 10;
+            var currentHash = mLastSettingsHash + mLastDataUpdatedAt;
+            var needsRedraw = false;
+            
+            if (mCachedGraphBitmap == null) {
+                needsRedraw = true;
+            } else if (currentMinute != mLastGraphUpdateMinute) {
+                needsRedraw = true;
+            } else if (mInLowPowerMode != mLastPowerMode) {
+                needsRedraw = true;
+            } else if (currentHash != mLastGraphHash) {
+                needsRedraw = true;
+            }
+
+            var bitmapY = (graphY - graphHeight - 30 * mScale).toNumber();
+            if (bitmapY < 0) { bitmapY = 0; }
+            var bitmapHeight = (graphHeight + 60 * mScale).toNumber();
+            if (bitmapY + bitmapHeight > mScreenHeight) {
+                bitmapHeight = mScreenHeight - bitmapY;
+            }
+
+            if (needsRedraw) {
+                mLastGraphUpdateMinute = currentMinute;
+                mLastPowerMode = mInLowPowerMode;
+                mLastGraphHash = currentHash;
+
+                if (mCachedGraphBitmap == null && Graphics has :createBufferedBitmap) {
+                    try {
+                        var bitmapRef = Graphics.createBufferedBitmap({
+                            :width => mScreenWidth,
+                            :height => bitmapHeight
+                        });
+                        if (bitmapRef != null) {
+                            mCachedGraphBitmap = bitmapRef.get() as Graphics.BufferedBitmap;
+                        }
+                    } catch (e) {
+                        mCachedGraphBitmap = null;
+                    }
+                }
+
+                var targetDc = dc;
+                var drawYOffset = 0;
+                if (mCachedGraphBitmap != null) {
+                    targetDc = mCachedGraphBitmap.getDc();
+                    targetDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
+                    targetDc.clear();
+                    drawYOffset = bitmapY;
+                }
+                
+                // Shift graphY by drawYOffset so all dependent drawing coordinates are shifted appropriately into the bitmap space
+                graphY = graphY - drawYOffset;
 
             // Tide Graph
-            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
+            targetDc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
             var lastX = -1, lastY = -1;
             if (mcTideData != null) {
                 var tDataArray = mcTideData as Array;
@@ -727,8 +784,8 @@ class TideWatchView extends WatchUi.WatchFace {
                                     var ry1 = y + (graphY - y) * j.toFloat() / N.toFloat();
                                     var ry2 = y + (graphY - y) * (j + 1).toFloat() / N.toFloat();
                                     
-                                    dc.setColor(shadeColor, Graphics.COLOR_TRANSPARENT);
-                                    dc.fillPolygon([
+                                    targetDc.setColor(shadeColor, Graphics.COLOR_TRANSPARENT);
+                                    targetDc.fillPolygon([
                                         [lastX, ly1.toNumber()],
                                         [x.toNumber(), ry1.toNumber()],
                                         [x.toNumber(), ry2.toNumber()],
@@ -738,9 +795,9 @@ class TideWatchView extends WatchUi.WatchFace {
                             }
 
                             // Draw the actual line on top
-                            dc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
-                            dc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
-                            dc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
+                            targetDc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
+                            targetDc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
+                            targetDc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
                         }
                         lastX = x.toNumber(); lastY = y.toNumber();
                     } else {
@@ -783,9 +840,9 @@ class TideWatchView extends WatchUi.WatchFace {
                             var sx = graphMargin + drawWidth * (wTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
                             var sy = graphY - graphHeight * (h - mMinSwellH) / (mMaxSwellH - mMinSwellH);
                             if (lastSX >= 0 && (sx >= -50 && sx <= mScreenWidth + 50)) {
-                                dc.setColor(colors[s], Graphics.COLOR_TRANSPARENT);
-                                dc.drawLine(lastSX, lastSY, sx.toNumber(), sy.toNumber());
-                                if (s == 0) { dc.drawLine(lastSX, lastSY+1, sx.toNumber(), sy.toNumber()+1); dc.drawLine(lastSX, lastSY-1, sx.toNumber(), sy.toNumber()-1); }
+                                targetDc.setColor(colors[s], Graphics.COLOR_TRANSPARENT);
+                                targetDc.drawLine(lastSX, lastSY, sx.toNumber(), sy.toNumber());
+                                if (s == 0) { targetDc.drawLine(lastSX, lastSY+1, sx.toNumber(), sy.toNumber()+1); targetDc.drawLine(lastSX, lastSY-1, sx.toNumber(), sy.toNumber()-1); }
                             }
                             lastSX = sx.toNumber(); lastSY = sy.toNumber();
                         } else {
@@ -832,7 +889,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     var hMeter = val / factor;
                     var gy = graphY - graphHeight * (hMeter - mMinH) / (mMaxH - mMinH);
                     
-                    dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+                    targetDc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
                     var dashLen = (4 * mScale).toNumber();
                     var gapLen = (4 * mScale).toNumber();
                     if (dashLen < 2) { dashLen = 2; }
@@ -840,7 +897,7 @@ class TideWatchView extends WatchUi.WatchFace {
                     for (var gx = 0; gx < mScreenWidth; gx += dashLen + gapLen) {
                         var endX = gx + dashLen;
                         if (endX > mScreenWidth) { endX = mScreenWidth; }
-                        dc.drawLine(gx, gy.toNumber(), endX, gy.toNumber());
+                        targetDc.drawLine(gx, gy.toNumber(), endX, gy.toNumber());
                     }
                     
                     var formatStr = (gridStep.toFloat() - gridStep.toNumber().toFloat()) > 0.01 ? "%.1f" : "%.0f";
@@ -870,7 +927,7 @@ class TideWatchView extends WatchUi.WatchFace {
                 
                 if (dateChangeTs != null) {
                     var cx = graphMargin + drawWidth * (dateChangeTs - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
-                    dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+                    targetDc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
                     var dashLen = (4 * mScale).toNumber();
                     var gapLen = (4 * mScale).toNumber();
                     if (dashLen < 2) { dashLen = 2; }
@@ -879,18 +936,18 @@ class TideWatchView extends WatchUi.WatchFace {
                     for (var gy = startY; gy < graphY; gy += dashLen + gapLen) {
                         var endY = gy + dashLen;
                         if (endY > graphY) { endY = graphY; }
-                        dc.drawLine(cx.toNumber(), gy.toNumber(), cx.toNumber(), endY.toNumber());
+                        targetDc.drawLine(cx.toNumber(), gy.toNumber(), cx.toNumber(), endY.toNumber());
                     }
                 }
 
                 // Draw grid labels on the right side of the watch face on top of everything
-                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+                targetDc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
                 var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
                 for (var i = 0; i < gridLabels.size(); i++) {
                     var item = gridLabels[i] as Array;
                     var gy = item[0] as Number;
                     var labelText = item[1] as String;
-                    dc.drawText(mScreenWidth - (10 * mScale).toNumber(), gy, font, labelText, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+                    targetDc.drawText(mScreenWidth - (10 * mScale).toNumber(), gy, font, labelText, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
                 }
             }
 
@@ -898,9 +955,16 @@ class TideWatchView extends WatchUi.WatchFace {
             var nowX = graphMargin + drawWidth * (now - mMinT).toFloat() / (mMaxT - mMinT).toFloat();
             if (nowX >= 0 && nowX <= mScreenWidth) {
                 var markerColor = mInLowPowerMode ? blendWithBlack(Graphics.COLOR_RED, 0.95) : Graphics.COLOR_RED;
-                dc.setColor(markerColor, Graphics.COLOR_TRANSPARENT);
+                targetDc.setColor(markerColor, Graphics.COLOR_TRANSPARENT);
                 var markerY = graphY - graphHeight * (mCurrentHeight - mMinH) / (mMaxH - mMinH);
-                dc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * mScale).toNumber());
+                targetDc.fillCircle(nowX.toNumber(), markerY.toNumber(), (6 * mScale).toNumber());
+            }
+            
+            } // End of needsRedraw block
+
+            // Finally, if we have a cached bitmap, draw it to the main dc
+            if (mCachedGraphBitmap != null) {
+                dc.drawBitmap(0, bitmapY, mCachedGraphBitmap);
             }
         }
     }
