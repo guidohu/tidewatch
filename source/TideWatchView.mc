@@ -577,7 +577,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var startX = (mScreenWidth - totalW) / 2;
 
         var fontHeight = dc.getFontHeight(Graphics.FONT_NUMBER_MILD);
-        var padX = (8 * mScale).toNumber();
+        var padX = (5 * mScale).toNumber();
         var rectW = totalW + 2 * padX;
         var rectH = (fontHeight * 0.68).toNumber() + (10 * mScale).toNumber();
         var rectX = startX - padX;
