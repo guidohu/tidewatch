@@ -97,7 +97,8 @@ class TideWatchApp extends Application.AppBase {
         var currentVersion = Version.STRING;
         var lastVersion = AppStorage.getAppVersion();
 
-        if (lastVersion == null || Version.isLowerThan(lastVersion, currentVersion)) {
+        // Delete all data for versions that are smaller than 2.2.0
+        if (lastVersion == null || Version.isLowerThan(lastVersion, "2.2.0")) {
             System.println("Upgrading app from " + (lastVersion == null ? "unknown" : lastVersion) + " to " + currentVersion);
             
             // Invalidate legacy formats from prior versions
