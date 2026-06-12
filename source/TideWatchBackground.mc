@@ -112,6 +112,8 @@ class TideWatchBackground extends System.ServiceDelegate {
         var tideExtremesNeed = !isFresh("tideExtremesUpdatedAt", Constants.FAST_SYNC_FRESHNESS_THRESHOLD_SEC);
 
         if (geocodeNeed || weatherNeed || tideTimelineNeed || tideExtremesNeed) {
+            System.println("Starting sync process with makePingRequest().");
+            logMemoryUsage();
             makePingRequest();
         } else {
             System.println("All cached data is fresh. No sync needed.");

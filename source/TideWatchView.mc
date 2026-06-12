@@ -6,8 +6,16 @@ import Toybox.System;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
 import Toybox.WatchUi;
+using KPayClock.KPay as KPay;
+
+var kpay as KPay.Core?;
 
 class TideWatchView extends WatchUi.WatchFace {
+
+    var mLastGpsLat;
+    var mLastGpsLon;
+    var mLastDatum;
+    var mLastApiKey;
 
     const METERS_TO_FEET = 3.28084;
     const STALE_DATA_THRESHOLD_SEC = 43200; // 12 hours
@@ -60,12 +68,25 @@ class TideWatchView extends WatchUi.WatchFace {
     var mScale as Float = 1.0;
     var mFontAssistantSmall as Graphics.FontDefinition? = null;
     var mInLowPowerMode as Boolean = false;
+    var mTimeFont = null;
 
     /**
      * Constructor. Calls parent WatchFace constructor.
      */
     function initialize() {
         WatchFace.initialize();
+
+        foregroundAppDelegate = self;
+
+        getOrCreateAnonymousIdentifier();
+        migrateSettings();
+
+        mLastGpsLat = Application.Properties.getValue("GpsLat");
+        mLastGpsLon = Application.Properties.getValue("GpsLon");
+        mLastDatum = Application.Properties.getValue("TideDatum");
+        mLastApiKey = Application.Properties.getValue("StormglassApiKey");
+
+        initializeKPay(true);
     }
 
     /**
@@ -94,6 +115,7 @@ class TideWatchView extends WatchUi.WatchFace {
         mScreenHeight = dc.getHeight();
         mScale = mScreenWidth.toFloat() / SCREEN_WIDTH_REFERENCE;
         mFontAssistantSmall = WatchUi.loadResource(Rez.Fonts.AssistantSmall) as Graphics.FontDefinition;
+        mTimeFont = WatchUi.loadResource(Rez.Strings.time_font);
     }
 
     /**
@@ -542,18 +564,22 @@ class TideWatchView extends WatchUi.WatchFace {
         var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         
+        var font = Graphics.FONT_NUMBER_HOT;
+        if (mTimeFont != null && mTimeFont.equals("medium")) {
+            font = Graphics.FONT_NUMBER_MEDIUM;
+        }
         var timeY = mScreenHeight * 0.24 - 5 * mScale;
         if (clockAmPm.length() > 0) {
-            var timeWidth = dc.getTextWidthInPixels(timeStr, Graphics.FONT_NUMBER_HOT);
+            var timeWidth = dc.getTextWidthInPixels(timeStr, font);
             var amPmWidth = dc.getTextWidthInPixels(clockAmPm, Graphics.FONT_XTINY);
             var gap = (2 * mScale).toNumber();
             var totalW = timeWidth + gap + amPmWidth;
             var startX = (mScreenWidth - totalW) / 2;
             
-            dc.drawText(startX, timeY, Graphics.FONT_NUMBER_HOT, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(startX, timeY, font, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.drawText(startX + timeWidth + gap, timeY - (8 * mScale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            drawCenteredText(dc, timeY, Graphics.FONT_NUMBER_HOT, timeStr, baseColor);
+            drawCenteredText(dc, timeY, font, timeStr, baseColor);
         }
     }
 
@@ -1196,6 +1222,199 @@ class TideWatchView extends WatchUi.WatchFace {
         var g = (color >> 8) & 0xFF;
         var b = color & 0xFF;
         return [r, g, b];
+    }
+
+    /**
+     * Lifecycle callback when the app stops.
+     */
+    function onStop(state as Dictionary?) as Void {
+        if (kpay != null) {
+            kpay.onStop();
+        }
+    }
+
+    /**
+     * Parses a generic coordinate value from an Object (e.g. String) to a Float.
+     */
+    function parseCoordinate(val as Object?, min as Float, max as Float) as Float {
+        if (val instanceof String) {
+            try {
+                var f = val.toFloat();
+                if (f != null && f >= min && f <= max) {
+                    return f;
+                }
+            } catch (e) {
+                System.println("Failed to parse coordinate: " + e.getErrorMessage());
+            }
+        }
+        return 0.0;
+    }
+
+    function parseLatitude(val as Object?) as Float {
+        return parseCoordinate(val, -90.0, 90.0);
+    }
+
+    function parseLongitude(val as Object?) as Float {
+        return parseCoordinate(val, -180.0, 180.0);
+    }
+
+    /**
+     * Migrates settings stored as legacy Strings.
+     */
+    function migrateSettings() as Void {
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        if (gpsLat instanceof String) {
+            Application.Properties.setValue("GpsLat", parseLatitude(gpsLat));
+            System.println("Migrated GpsLat from String to Float.");
+        }
+        
+        var gpsLon = Application.Properties.getValue("GpsLon");
+        if (gpsLon instanceof String) {
+            Application.Properties.setValue("GpsLon", parseLongitude(gpsLon));
+            System.println("Migrated GpsLon from String to Float.");
+        }
+
+        var currentVersion = Version.STRING;
+        var lastVersion = AppStorage.getAppVersion();
+
+        if (lastVersion == null || Version.isLowerThan(lastVersion, "2.2.0")) {
+            System.println("Upgrading app from " + (lastVersion == null ? "unknown" : lastVersion) + " to " + currentVersion);
+            
+            Application.Storage.deleteValue("tideTimes");
+            Application.Storage.deleteValue("tideStartTime");
+            Application.Storage.deleteValue("tideInterval");
+            AppStorage.clearTideData();
+            AppStorage.clearWaveData();
+            AppStorage.setDataUpdatedAt(0);
+
+            AppStorage.clearGeocodeUpdatedAt();
+            AppStorage.clearWeatherUpdatedAt();
+            AppStorage.clearTideTimelineUpdatedAt();
+            AppStorage.clearTideExtremesUpdatedAt();
+
+            AppStorage.setAppVersion(currentVersion);
+        }
+    }
+
+    function getOrCreateAnonymousIdentifier() {
+        return AppStorage.getOrCreateAnonymousUserId();
+    }
+
+    function logMemoryUsage() {
+        var stats = System.getSystemStats();
+        System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
+    }
+
+    /**
+     * Instantiates or destroys the KiezelPay Core controller based on settings.
+     */
+    function initializeKPay(enableKPay as Boolean) as Boolean {
+        var kpayChanged = false;
+        if (enableKPay) {
+            var kpayInstance = kpay;
+            if (kpayInstance == null) {
+                kpayInstance = new KPay.Core(getKPayConfig());
+                kpay = kpayInstance;
+                kpayChanged = true;
+            }
+            System.println("KiezelPay isLicensed: " + kpayInstance.isLicensed());
+            if (!kpayInstance.isLicensed()) {
+                kpayInstance.startPurchase();
+            }
+        } else {
+            if (kpay != null) {
+                kpay = null;
+                kpayChanged = true;
+            }
+        }
+        return kpayChanged;
+    }
+
+    /**
+     * Handles user settings changes in the view.
+     */
+    function onSettingsChanged() {
+        var gpsLat = Application.Properties.getValue("GpsLat");
+        var gpsLon = Application.Properties.getValue("GpsLon");
+
+        if (!LocationUtils.isValidLatitude(gpsLat)) {
+            Application.Properties.setValue("GpsLat", 0.0);
+            gpsLat = 0.0;
+        }
+        if (!LocationUtils.isValidLongitude(gpsLon)) {
+            Application.Properties.setValue("GpsLon", 0.0);
+            gpsLon = 0.0;
+        }
+
+        var kpayChanged = initializeKPay(true);
+
+        var curDatum = Application.Properties.getValue("TideDatum");
+        var curApiKey = Application.Properties.getValue("StormglassApiKey");
+
+        var needsSync = false;
+        if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
+           (curApiKey != null && !curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
+            needsSync = true;
+        }
+
+        mLastGpsLat = gpsLat;
+        mLastGpsLon = gpsLon;
+        mLastDatum = curDatum;
+        mLastApiKey = curApiKey;
+
+        if (needsSync) {
+            TideWatchSettingsMenu.triggerImmediateSync(true);
+        }
+        
+        WatchUi.requestUpdate();
+    }
+
+    /**
+     * Handles background data in the view.
+     */
+    function onBackgroundData(data as Application.PersistableType) as Void {
+        System.println("onBackgroundData called on View with data: " + (data == null ? "null" : data.toString()));
+        logMemoryUsage();
+        
+        if (kpay != null && data instanceof Dictionary) {
+            kpay.onBackgroundData(data);
+
+            var event = data.get("kpay_event");
+            if (event instanceof Dictionary) {
+                var kpayStatus = event.get("status");
+                System.println("KiezelPay background event status: " + kpayStatus);
+            }
+            System.println("KiezelPay isLicensed after sync: " + kpay.isLicensed());
+
+            var response = (data as Dictionary)[(kpay as KPay.Core).extraResponseKey];
+            if (response instanceof Boolean && response as Boolean) {
+                AppStorage.setDataUpdatedAt(Time.now().value());
+                WatchUi.requestUpdate();
+            } else {
+                System.println("TideWatch Background service: kpay pass-through sync failed");
+            }
+        } else if (kpay == null && data instanceof Boolean) {
+            if (data as Boolean) {
+                AppStorage.setDataUpdatedAt(Time.now().value());
+                WatchUi.requestUpdate();
+            } else {
+                System.println("TideWatch Background service: sync failed");
+            }
+        } else {
+            System.println("TideWatch Background service: unknown data format or failed sync");
+        }
+        
+        if (System has :ServiceDelegate) {
+            var earliest = Time.now().add(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
+            scheduleNextBackgroundEvent(earliest);
+        }
+    }
+
+    /**
+     * Retrieves the settings menu views and delegates.
+     */
+    function getSettingsView() {
+        return [ new TideWatchSettingsMenu(), new TideWatchSettingsMenuDelegate() ] as [WatchUi.Views, WatchUi.InputDelegates];
     }
 }
 
