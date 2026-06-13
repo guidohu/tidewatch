@@ -1,0 +1,4 @@
+<resources>
+    <!-- Forecast Window: override to short (20 hours) for low-memory devices -->
+    <string id="ForecastWindow">short</string>
+</resources>

@@ -1,7 +1,7 @@
 import Toybox.Lang;
 
 (:background)
-module LocationUtils {
+module LocationUtilsBG {
     /**
      * Validates if the given object is a valid latitude coordinate (-90.0 to 90.0 degrees).
      * @param lat The latitude object to validate.
@@ -42,5 +42,19 @@ module LocationUtils {
             return !(lat.toFloat() == 0.0 && lon.toFloat() == 0.0);
         }
         return false;
+    }
+}
+
+module LocationUtils {
+    function isValidLatitude(lat as Object?) as Boolean {
+        return LocationUtilsBG.isValidLatitude(lat);
+    }
+
+    function isValidLongitude(lon as Object?) as Boolean {
+        return LocationUtilsBG.isValidLongitude(lon);
+    }
+
+    function isLocationSetAndValid(lat as Object?, lon as Object?) as Boolean {
+        return LocationUtilsBG.isLocationSetAndValid(lat, lon);
     }
 }

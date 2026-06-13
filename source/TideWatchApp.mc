@@ -10,12 +10,12 @@ using KPayClock.KPay as KPay;
 (:background)
 var foregroundAppDelegate = null;
 
-(:background)
 class TideWatchApp extends Application.AppBase {
 
     /**
      * Constructor. Initializes the parent AppBase.
      */
+    (:background)
     function initialize() {
         AppBase.initialize();
     }
@@ -63,6 +63,7 @@ class TideWatchApp extends Application.AppBase {
     /**
      * Gets the background service delegate instance to execute scheduled events.
      */
+    (:background)
     function getServiceDelegate() {
         System.println("TideWatch Background service: getServiceDelegate");
         var enableKPay = true;
@@ -116,7 +117,7 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
             ]));
             
             Background.registerForTemporalEvent(nextTime);
-            AppStorage.setNextSyncTime(nextTime.value());
+            Application.Storage.setValue("nextSyncTime", nextTime.value());
         } catch (e) {
             System.println("Background registration failed: " + e.getErrorMessage()); 
         }

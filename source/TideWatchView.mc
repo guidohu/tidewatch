@@ -81,6 +81,16 @@ class TideWatchView extends WatchUi.WatchFace {
         getOrCreateAnonymousIdentifier();
         migrateSettings();
 
+        var forecastWindow = Application.loadResource(Rez.Strings.ForecastWindow) as String;
+        var forecastWindowSec = 48 * 3600;
+        var forecastStartOffsetSec = 4 * 3600;
+        if (forecastWindow != null && (forecastWindow.equals("short") || forecastWindow.equals("small"))) {
+            forecastWindowSec = 12 * 3600;
+            forecastStartOffsetSec = 4 * 3600;
+        }
+        AppStorage.setForecastWindowSec(forecastWindowSec);
+        AppStorage.setForecastStartOffsetSec(forecastStartOffsetSec);
+
         mLastGpsLat = Application.Properties.getValue("GpsLat");
         mLastGpsLon = Application.Properties.getValue("GpsLon");
         mLastDatum = Application.Properties.getValue("TideDatum");
