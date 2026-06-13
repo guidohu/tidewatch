@@ -7,22 +7,12 @@ module AppStorageBG {
     public function getAppId() as String? {
         return Application.Storage.getValue("AppId") as String?;
     }
-    public function setAppId(val as String) as Void {
-        Application.Storage.setValue("AppId", val);
-    }
-
     public function getForecastStartOffsetSec() as Number? {
         return Application.Storage.getValue("forecastStartOffsetSec") as Number?;
-    }
-    public function setForecastStartOffsetSec(val as Number) as Void {
-        Application.Storage.setValue("forecastStartOffsetSec", val);
     }
 
     public function getForecastWindowSec() as Number? {
         return Application.Storage.getValue("forecastWindowSec") as Number?;
-    }
-    public function setForecastWindowSec(val as Number) as Void {
-        Application.Storage.setValue("forecastWindowSec", val);
     }
 
     public function getSpotName() as String? {
@@ -138,21 +128,21 @@ module AppStorage {
         return AppStorageBG.getAppId();
     }
     public function setAppId(val as String) as Void {
-        AppStorageBG.setAppId(val);
+        Application.Storage.setValue("AppId", val);
     }
 
     public function getForecastStartOffsetSec() as Number? {
         return AppStorageBG.getForecastStartOffsetSec();
     }
     public function setForecastStartOffsetSec(val as Number) as Void {
-        AppStorageBG.setForecastStartOffsetSec(val);
+        Application.Storage.setValue("forecastStartOffsetSec", val);
     }
 
     public function getForecastWindowSec() as Number? {
         return AppStorageBG.getForecastWindowSec();
     }
     public function setForecastWindowSec(val as Number) as Void {
-        AppStorageBG.setForecastWindowSec(val);
+        Application.Storage.setValue("forecastWindowSec", val);
     }
 
     public function getSpotName() as String? {

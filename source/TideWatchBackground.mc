@@ -51,8 +51,6 @@ class TideWatchBackground extends System.ServiceDelegate {
         System.println("Memory: " + stats.usedMemory + " / " + stats.totalMemory);
     }
 
-
-
     /**
      * Main background execution callback triggered by temporal events.
      * Sets target location, calculates start/end moments, and triggers the sync chain.
@@ -106,7 +104,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         mTideEnd = tideEndTs.value();
 
         System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
-        
+
         var hasSpotName = (AppStorageBG.getSpotName() != null);
         var threshold = hasSpotName ? (24 * 3600) : ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
         
@@ -509,7 +507,6 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function makeTideExtremesRequest() as Void {
         if (isFresh(AppStorageBG.getTideExtremesUpdatedAt(), ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
-            System.println("Tide extremes data is fresh, skipping.");
             finalizeSync();
             return;
         }
@@ -525,7 +522,6 @@ class TideWatchBackground extends System.ServiceDelegate {
             params.put("datum", mDatumStr);
         }
         var options = getRequestOptions(false);
-        System.println("Requesting Tide Extremes with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
 
@@ -536,13 +532,8 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param data Parsed JSON response dictionary.
      */
     function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Extremes response: " + responseCode);
-        if (responseCode != 200) { 
-            System.println("Extremes data: " + data);
-        }
         logMemoryUsage();
         if (handleQuotaError(responseCode)) {
-            System.println("Quota error");
             return;
         }
 
