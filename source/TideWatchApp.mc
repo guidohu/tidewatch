@@ -10,6 +10,7 @@ using KPayClock.KPay as KPay;
 (:background)
 var foregroundAppDelegate = null;
 
+(:background)
 class TideWatchApp extends Application.AppBase {
 
     /**
