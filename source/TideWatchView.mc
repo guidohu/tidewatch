@@ -1401,23 +1401,49 @@ class TideWatchView extends WatchUi.WatchFace {
                 AppStorage.setDataUpdatedAt(Time.now().value());
                 WatchUi.requestUpdate();
             } else {
-                System.println("TideWatch Background service: kpay pass-through sync failed");
+                // System.println("TideWatch Background service: kpay pass-through sync failed");
+                logSyncError("kpay pass-through sync failed", AppStorage.getSyncError());
             }
         } else if (kpay == null && data instanceof Boolean) {
             if (data as Boolean) {
                 AppStorage.setDataUpdatedAt(Time.now().value());
                 WatchUi.requestUpdate();
             } else {
-                System.println("TideWatch Background service: sync failed");
+                // System.println("TideWatch Background service: sync failed");
+                logSyncError("sync failed", AppStorage.getSyncError());
             }
         } else {
-            System.println("TideWatch Background service: unknown data format or failed sync");
+            // System.println("TideWatch Background service: unknown data format or failed sync");
+            logSyncError("unknown data format or failed sync", AppStorage.getSyncError());
         }
         
         if (System has :ServiceDelegate) {
             var earliest = Time.now().add(new Time.Duration(Constants.DATA_UPDATE_INTERVAL_SEC));
             scheduleNextBackgroundEvent(earliest);
         }
+    }
+
+    /**
+     * Translates a numeric background error code to a human-readable string and prints it.
+     */
+    function logSyncError(context as String, errorCode as Number?) as Void {
+        var msg = "";
+        if (errorCode == null) {
+            msg = "unknown error";
+        } else if (errorCode == DataKeys.ERROR_APP_ID_MISSING) {
+            msg = "AppId missing from storage. Background sync aborted.";
+        } else if (errorCode == DataKeys.ERROR_LOCATION_MISSING) {
+            msg = "No Location Set or invalid range/type. Exit.";
+        } else if (errorCode == DataKeys.ERROR_QUOTA_EXCEEDED) {
+            msg = "API Quota Exceeded (402/429)!";
+        } else if (errorCode == DataKeys.ERROR_NO_DATA) {
+            msg = "no tide data available";
+        } else if (errorCode == DataKeys.ERROR_INVALID_KEY) {
+            msg = "API key is invalid";
+        } else {
+            msg = "error code " + errorCode;
+        }
+        System.println("TideWatch Background service: " + context + " (" + msg + ")");
     }
 
     /**

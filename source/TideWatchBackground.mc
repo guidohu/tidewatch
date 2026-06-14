@@ -58,7 +58,8 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onTemporalEvent() as Void {
         var appId = AppStorageBG.getAppId();
         if (appId == null) {
-            System.println("AppId missing from storage. Background sync aborted.");
+            // System.println("AppId missing from storage. Background sync aborted.");
+            saveSyncError(DataKeysBG.ERROR_APP_ID_MISSING);
             exitBackground(false);
             return;
         }
@@ -72,7 +73,8 @@ class TideWatchBackground extends System.ServiceDelegate {
             mTargetLat = gpsLat.toFloat();
             mTargetLon = gpsLon.toFloat();
         } else {
-            System.println("No Location Set or invalid range/type. Exit.");
+            // System.println("No Location Set or invalid range/type. Exit.");
+            saveSyncError(DataKeysBG.ERROR_LOCATION_MISSING);
             exitBackground(false);
             return;
         }
@@ -103,7 +105,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         mEnd = endTs.value();
         mTideEnd = tideEndTs.value();
 
-        System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
+        // System.println("Starting sync sequence. Target: " + mTargetLat + "/" + mTargetLon);
 
         var hasSpotName = (AppStorageBG.getSpotName() != null);
         var threshold = hasSpotName ? (24 * 3600) : ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
@@ -114,11 +116,11 @@ class TideWatchBackground extends System.ServiceDelegate {
         var tideExtremesNeed = !isFresh(AppStorageBG.getTideExtremesUpdatedAt(), ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC);
 
         if (geocodeNeed || weatherNeed || tideTimelineNeed || tideExtremesNeed) {
-            System.println("Starting sync process with makePingRequest().");
+            // System.println("Starting sync process with makePingRequest().");
             logMemoryUsage();
             makePingRequest();
         } else {
-            System.println("All cached data is fresh. No sync needed.");
+            // System.println("All cached data is fresh. No sync needed.");
             finalizeSync();
         }
     }
@@ -134,7 +136,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             "version" => VERSION_STRING
         };
         var options = getRequestOptions(false);
-        System.println("Requesting Ping with: " + url + " parameters: " + params);
+        // System.println("Requesting Ping with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceivePing));
     }
 
@@ -142,9 +144,9 @@ class TideWatchBackground extends System.ServiceDelegate {
      * Callback for the ping web request.
      */
     function onReceivePing(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Ping response: " + responseCode);
+        // System.println("Ping response: " + responseCode);
         if (responseCode != 200) {
-            System.println("Ping failed, data: " + data);
+            // System.println("Ping failed, data: " + data);
         }
         // Always proceed to the next request
         makeBigDataCloudRequest();
@@ -158,7 +160,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function handleQuotaError(responseCode as Number) as Boolean {
         if (responseCode == 402 || responseCode == 429) {
-            System.println("API Quota Exceeded (402/429)!");
+            // System.println("API Quota Exceeded (402/429)!");
             saveSyncError(DataKeysBG.ERROR_QUOTA_EXCEEDED);
             exitBackground(false);
             return true;
@@ -240,7 +242,7 @@ class TideWatchBackground extends System.ServiceDelegate {
         var threshold = hasSpotName ? (24 * 3600) : ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
 
         if (isFresh(AppStorageBG.getGeocodeUpdatedAt(), threshold)) {
-            System.println("Geocoding data is fresh, skipping.");
+            // System.println("Geocoding data is fresh, skipping.");
             if (mApiKey != null && !mApiKey.equals("")) {
                 makeStormglassWeatherRequest();
             } else {
@@ -256,7 +258,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             "localityLanguage" => "en"
         };
         var options = getRequestOptions(true);
-        System.println("Requesting BigDataCloud Reverse-Geocode with: " + url + " parameters: " + params);
+        // System.println("Requesting BigDataCloud Reverse-Geocode with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveBigDataCloud));
     }
 
@@ -267,7 +269,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param data Parsed JSON response dictionary.
      */
     function onReceiveBigDataCloud(responseCode as Number, data as Dictionary?) as Void {
-        System.println("BigDataCloud response: " + responseCode);
+        // System.println("BigDataCloud response: " + responseCode);
         if (responseCode != 200) { System.println("BigDataCloud data: " + data); }
         var spotName = null;
         var success = false;
@@ -291,12 +293,12 @@ class TideWatchBackground extends System.ServiceDelegate {
                 AppStorageBG.setSpotName(spotName);
                 mDataUpdatedThisRun = true;
             }
-            System.println("Geocoding failed, fallback to coordinates (or keep cached): " + spotName);
+            // System.println("Geocoding failed, fallback to coordinates (or keep cached): " + spotName);
         } else {
             AppStorageBG.setGeocodeUpdatedAt(Time.now().value());
             AppStorageBG.setSpotName(spotName);
             mDataUpdatedThisRun = true;
-            System.println("Resolved spotName: " + spotName);
+            // System.println("Resolved spotName: " + spotName);
         }
 
         // Always proceed to the next request
@@ -313,7 +315,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function makeStormglassWeatherRequest() as Void {
         if (isFresh(AppStorageBG.getWeatherUpdatedAt(), ConstantsBG.SLOW_SYNC_FRESHNESS_THRESHOLD_SEC)) {
-            System.println("Weather data is fresh, skipping.");
+            // System.println("Weather data is fresh, skipping.");
             makeTideTimelineRequest();
             return;
         }
@@ -328,7 +330,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             "source" => "noaa"
         };
         var options = getRequestOptions(true);
-        System.println("Requesting Stormglass Weather with: " + url + " parameters: " + params);
+        // System.println("Requesting Stormglass Weather with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveWeather));
     }
 
@@ -339,9 +341,9 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param data Parsed JSON response dictionary.
      */
     function onReceiveWeather(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Weather response: " + responseCode);
+        // System.println("Weather response: " + responseCode);
         if (responseCode != 200) { 
-            System.println("Weather data: " + data);
+            // System.println("Weather data: " + data);
             var errCode = DataKeysBG.ERROR_OTHER;
             if (responseCode == 402 || responseCode == 429) {
                 errCode = DataKeysBG.ERROR_QUOTA_EXCEEDED;
@@ -417,7 +419,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function makeTideTimelineRequest() as Void {
         if (isFresh(AppStorageBG.getTideTimelineUpdatedAt(), ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
-            System.println("Tide timeline data is fresh, skipping.");
+            // System.println("Tide timeline data is fresh, skipping.");
             makeTideExtremesRequest();
             return;
         }
@@ -433,7 +435,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             params.put("datum", mDatumStr);
         }
         var options = getRequestOptions(false);
-        System.println("Requesting Tide Timeline: " + url + " parameters: " + params);
+        // System.println("Requesting Tide Timeline: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveTide));
     }
 
@@ -444,8 +446,10 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param data Parsed JSON response dictionary.
      */
     function onReceiveTide(responseCode as Number, data as Dictionary?) as Void {
-        System.println("Tide response: " + responseCode);
-        if (responseCode != 200) { System.println("Tide data: " + data); }
+        // System.println("Tide response: " + responseCode);
+        if (responseCode != 200) {
+            // System.println("Tide data: " + data);
+        }
         logMemoryUsage();
         if (handleQuotaError(responseCode)) { return; }
 
@@ -507,6 +511,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function makeTideExtremesRequest() as Void {
         if (isFresh(AppStorageBG.getTideExtremesUpdatedAt(), ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC)) {
+            // System.println("Tide extremes data is fresh, skipping.");
             finalizeSync();
             return;
         }
@@ -522,6 +527,7 @@ class TideWatchBackground extends System.ServiceDelegate {
             params.put("datum", mDatumStr);
         }
         var options = getRequestOptions(false);
+        // System.println("Requesting Tide Extremes with: " + url + " parameters: " + params);
         Communications.makeWebRequest(url, params, options, method(:onReceiveExtremes));
     }
 
@@ -532,8 +538,13 @@ class TideWatchBackground extends System.ServiceDelegate {
      * @param data Parsed JSON response dictionary.
      */
     function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
+        // System.println("Extremes response: " + responseCode);
+        // if (responseCode != 200) { 
+        //     System.println("Extremes data: " + data);
+        // }
         logMemoryUsage();
         if (handleQuotaError(responseCode)) {
+            // System.println("Quota error");
             return;
         }
 

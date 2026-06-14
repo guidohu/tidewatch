@@ -65,7 +65,6 @@ class TideWatchApp extends Application.AppBase {
      */
     (:background)
     function getServiceDelegate() {
-        System.println("TideWatch Background service: getServiceDelegate");
         var enableKPay = true;
         if (enableKPay) {
             return [ new KPay.KPayBackgroundServiceDelegate(TideWatchBackground, 0) ] as [System.ServiceDelegate];
@@ -106,23 +105,23 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
                 }
             }
             
-            var info = Gregorian.info(nextTime, Time.FORMAT_SHORT);
-            System.println(Lang.format("Scheduling background event for: $1$-$2$-$3$ $4$:$5$:$6$", [
-                info.year,
-                info.month.format("%02d"),
-                info.day.format("%02d"),
-                info.hour.format("%02d"),
-                info.min.format("%02d"),
-                info.sec.format("%02d")
-            ]));
+            // var info = Gregorian.info(nextTime, Time.FORMAT_SHORT);
+            // System.println(Lang.format("Scheduling background event for: $1$-$2$-$3$ $4$:$5$:$6$", [
+            //     info.year,
+            //     info.month.format("%02d"),
+            //     info.day.format("%02d"),
+            //     info.hour.format("%02d"),
+            //     info.min.format("%02d"),
+            //     info.sec.format("%02d")
+            // ]));
             
             Background.registerForTemporalEvent(nextTime);
             Application.Storage.setValue("nextSyncTime", nextTime.value());
         } catch (e) {
-            System.println("Background registration failed: " + e.getErrorMessage()); 
+            System.println("ERROR: Background registration failed: " + e.getErrorMessage()); 
         }
     } else {
-        System.println("Background not available"); 
+        System.println("ERROR: Background not available"); 
     }
 }
 
