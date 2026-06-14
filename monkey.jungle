@@ -58,16 +58,16 @@ instincte45mm.resourcePath = $(instincte45mm.resourcePath);resources/icons/62x62
 # 40x40
 descentmk2.resourcePath = $(descentmk2.resourcePath);resources/icons/40x40
 descentmk2s.resourcePath = $(descentmk2s.resourcePath);resources/icons/40x40
-enduro.resourcePath = $(enduro.resourcePath);resources/icons/40x40;resources-short-window
+enduro.resourcePath = $(enduro.resourcePath);resources/icons/40x40;resources/low-memory
 enduro3.resourcePath = $(enduro3.resourcePath);resources/icons/40x40
-fenix5plus.resourcePath = $(fenix5plus.resourcePath);resources/icons/40x40;resources-short-window
-fenix5splus.resourcePath = $(fenix5splus.resourcePath);resources/icons/40x40;resources-short-window
-fenix5xplus.resourcePath = $(fenix5xplus.resourcePath);resources/icons/40x40;resources-short-window
-fenix6.resourcePath = $(fenix6.resourcePath);resources/icons/40x40;resources-short-window
-fenix6pro.resourcePath = $(fenix6pro.resourcePath);resources/icons/40x40;resources-short-window
-fenix6s.resourcePath = $(fenix6s.resourcePath);resources/icons/40x40;resources-short-window
-fenix6spro.resourcePath = $(fenix6spro.resourcePath);resources/icons/40x40;resources-short-window
-fenix6xpro.resourcePath = $(fenix6xpro.resourcePath);resources/icons/40x40;resources-short-window
+fenix5plus.resourcePath = $(fenix5plus.resourcePath);resources/icons/40x40;resources/low-memory
+fenix5splus.resourcePath = $(fenix5splus.resourcePath);resources/icons/40x40;resources/low-memory
+fenix5xplus.resourcePath = $(fenix5xplus.resourcePath);resources/icons/40x40;resources/low-memory
+fenix6.resourcePath = $(fenix6.resourcePath);resources/icons/40x40;resources/low-memory
+fenix6pro.resourcePath = $(fenix6pro.resourcePath);resources/icons/40x40;resources/low-memory
+fenix6s.resourcePath = $(fenix6s.resourcePath);resources/icons/40x40;resources/low-memory
+fenix6spro.resourcePath = $(fenix6spro.resourcePath);resources/icons/40x40;resources/low-memory
+fenix6xpro.resourcePath = $(fenix6xpro.resourcePath);resources/icons/40x40;resources/low-memory
 fenix7.resourcePath = $(fenix7.resourcePath);resources/icons/40x40
 fenix7pro.resourcePath = $(fenix7pro.resourcePath);resources/icons/40x40
 fenix7pronowifi.resourcePath = $(fenix7pronowifi.resourcePath);resources/icons/40x40
@@ -78,7 +78,7 @@ fenix7xpro.resourcePath = $(fenix7xpro.resourcePath);resources/icons/40x40
 fenix7xpronowifi.resourcePath = $(fenix7xpronowifi.resourcePath);resources/icons/40x40
 fenix8solar47mm.resourcePath = $(fenix8solar47mm.resourcePath);resources/icons/40x40
 fenix8solar51mm.resourcePath = $(fenix8solar51mm.resourcePath);resources/icons/40x40
-fr245.resourcePath = $(fr245.resourcePath);resources/icons/40x40;resources-short-window
+fr245.resourcePath = $(fr245.resourcePath);resources/icons/40x40;resources/low-memory
 fr245m.resourcePath = $(fr245m.resourcePath);resources/icons/40x40
 fr255.resourcePath = $(fr255.resourcePath);resources/icons/40x40
 fr255m.resourcePath = $(fr255m.resourcePath);resources/icons/40x40
@@ -112,7 +112,7 @@ venu441mm.resourcePath = $(venu441mm.resourcePath);resources/icons/54x54
 vivoactive6.resourcePath = $(vivoactive6.resourcePath);resources/icons/54x54
 
 # 35x35
-fr55.resourcePath = $(fr55.resourcePath);resources/icons/35x35;resources-short-window;resources/model/fr55
+fr55.resourcePath = $(fr55.resourcePath);resources/icons/35x35;resources/low-memory;resources/model/fr55
 legacyherofirstavenger.resourcePath = $(legacyherofirstavenger.resourcePath);resources/icons/35x35
 legacysagadarthvader.resourcePath = $(legacysagadarthvader.resourcePath);resources/icons/35x35
 vivoactive4.resourcePath = $(vivoactive4.resourcePath);resources/icons/35x35
@@ -135,8 +135,8 @@ vivoactive4s.resourcePath = $(vivoactive4s.resourcePath);resources/icons/30x30
 venu2s.resourcePath = $(venu2s.resourcePath);resources/icons/61x61
 
 # 36x36
-venusq.resourcePath = $(venusq.resourcePath);resources/icons/36x36;resources-short-window
-venusqm.resourcePath = $(venusqm.resourcePath);resources/icons/36x36;resources-short-window
+venusq.resourcePath = $(venusq.resourcePath);resources/icons/36x36;resources/low-memory
+venusqm.resourcePath = $(venusqm.resourcePath);resources/icons/36x36;resources/low-memory
 
 # 40x33
 vivoactive3m.resourcePath = $(vivoactive3m.resourcePath);resources/icons/40x33
