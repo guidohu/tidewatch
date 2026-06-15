@@ -48,7 +48,7 @@ module AppStorageBG {
 
     public function getDataUpdatedAt() as Number {
         var val = Application.Storage.getValue("dataUpdatedAt");
-        return (val instanceof Number) ? val : 0;
+        return (val instanceof Lang.Number) ? val : 0;
     }
     public function setDataUpdatedAt(val as Number) as Void {
         Application.Storage.setValue("dataUpdatedAt", val);
@@ -298,7 +298,7 @@ module AppStorage {
 
     public function getNextSyncTime() as Number {
         var val = Application.Storage.getValue("nextSyncTime");
-        return (val instanceof Number) ? val : 0;
+        return (val instanceof Lang.Number) ? val : 0;
     }
     public function setNextSyncTime(val as Number) as Void {
         Application.Storage.setValue("nextSyncTime", val);

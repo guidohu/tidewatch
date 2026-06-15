@@ -64,14 +64,14 @@ class TideWatchBackground extends System.ServiceDelegate {
             return;
         }
 
-        mApiKey = Application.Properties.getValue("StormglassApiKey");
+        mApiKey = Application.Properties.getValue("StormglassApiKey") as String?;
 
-        var gpsLat = Application.Properties.getValue("GpsLat");
-        var gpsLon = Application.Properties.getValue("GpsLon");
+        var gpsLat = Application.Properties.getValue("GpsLat") as $.Toybox.Application.Properties.ValueType;
+        var gpsLon = Application.Properties.getValue("GpsLon") as $.Toybox.Application.Properties.ValueType;
 
         if (LocationUtilsBG.isLocationSetAndValid(gpsLat, gpsLon)) {
-            mTargetLat = gpsLat.toFloat();
-            mTargetLon = gpsLon.toFloat();
+            mTargetLat = LocationUtilsBG.getAsFloat(gpsLat);
+            mTargetLon = LocationUtilsBG.getAsFloat(gpsLon);
         } else {
             // System.println("No Location Set or invalid range/type. Exit.");
             saveSyncError(DataKeysBG.ERROR_LOCATION_MISSING);
@@ -477,7 +477,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 }
 
                 if (count == 0) {
-                    tideData = [];
+                    tideData = new Array<Array<Number>>[0];
                 } else if (count < ptsSize) {
                     tideData = tideData.slice(0, count);
                 }
@@ -572,7 +572,7 @@ class TideWatchBackground extends System.ServiceDelegate {
                 }
 
                 if (count == 0) {
-                    extrema = [];
+                    extrema = new Array<Array<Number>>[0];
                 } else if (count < ptsSize) {
                     extrema = extrema.slice(0, count);
                 }

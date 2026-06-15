@@ -24,7 +24,7 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
         var subLabel = "";
         if (spotName != null && !spotName.equals("")) {
             subLabel = spotName;
-        } else if (gpsLat != null && gpsLon != null && (gpsLat instanceof Float || gpsLat instanceof Double) && (gpsLon instanceof Float || gpsLon instanceof Double)) {
+        } else if ((gpsLat instanceof Float || gpsLat instanceof Double) && (gpsLon instanceof Float || gpsLon instanceof Double)) {
             subLabel = gpsLat.format("%.4f") + ", " + gpsLon.format("%.4f");
         }
 
@@ -67,7 +67,7 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
 
         var apiKeyStr = "Not Set";
         var apiKey = Application.Properties.getValue("StormglassApiKey");
-        if (apiKey != null && apiKey instanceof String && (apiKey as String).length() > 0) {
+        if (apiKey instanceof String && (apiKey as String).length() > 0) {
             apiKeyStr = "Set";
         }
         addItem(new WatchUi.MenuItem(loadStr(Rez.Strings.StormglassApiKeyTitle), apiKeyStr, "StormglassApiKey", {}));
@@ -259,7 +259,7 @@ class LocationOptionMenu extends WatchUi.Menu2 {
         var manualLat = Application.Properties.getValue("GpsLat");
         var manualLon = Application.Properties.getValue("GpsLon");
         var manualSub = "Not Set";
-        if (manualLat != null && manualLon != null && (manualLat instanceof Float || manualLat instanceof Double) && (manualLon instanceof Float || manualLon instanceof Double)) {
+        if ((manualLat instanceof Float || manualLat instanceof Double) && (manualLon instanceof Float || manualLon instanceof Double)) {
             manualSub = manualLat.format("%.4f") + ", " + manualLon.format("%.4f");
         }
         addItem(new WatchUi.MenuItem(TideWatchSettingsMenu.loadStr(Rez.Strings.UseManualCoordinates), manualSub, "Manual", {}));

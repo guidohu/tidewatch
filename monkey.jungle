@@ -1,6 +1,8 @@
 project.manifest = manifest.xml
 base.resourcePath = resources/drawables;resources/fonts;resources/settings;resources/strings
-base.barrelPath = $(base.barrelPath);kpay-clock.barrel
+base.sourcePath = source/*.mc;source/kpay/*.mc
+
+
 
 
 # 56x56
