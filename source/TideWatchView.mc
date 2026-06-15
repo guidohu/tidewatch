@@ -428,7 +428,7 @@ class TideWatchView extends WatchUi.WatchFace {
                 } else {
                     var tDataArray = mcTideData as Array;
                     var firstTide = tDataArray[0] as Array;
-                    if (firstTide != null && firstTide.size() > 0 && now < (firstTide[0] as Number)) {
+                    if (firstTide.size() > 0 && now < (firstTide[0] as Number)) {
                         currentWave = waveDataArray[0];
                     } else {
                         currentWave = waveDataArray[waveDataArray.size() - 1];
@@ -634,34 +634,30 @@ class TideWatchView extends WatchUi.WatchFace {
             };
             
             var bitmapRef = Graphics.createBufferedBitmap(options);
-            if (bitmapRef != null) {
-                var bufferedBitmap = bitmapRef.get();
-                if (bufferedBitmap != null) {
-                    var bDc = bufferedBitmap.getDc();
-                    if (bDc != null) {
-                        bDc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
-                        bDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
-                        bDc.clear();
-                        
-                        bDc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
-                        
-                        if (bDc has :setFill) {
-                            var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
-                            var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-                            // Create the 32-bit ARGB value (102 out of 255 is ~40% opacity)
-                            var alphaColor = (102 << 24) | baseRgb; 
-                            
-                            // setColor strips alpha, so setFill MUST be used
-                            bDc.setFill(alphaColor);
-                        } else {
-                            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
-                            bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
-                        }
-                        
-                        bDc.fillRectangle(0, 0, rectW, rectH);
-                        dc.drawBitmap(rectX, rectY, bufferedBitmap);
-                    }
+            var bufferedBitmap = bitmapRef.get();
+            if (bufferedBitmap != null) {
+                var bDc = bufferedBitmap.getDc();
+                bDc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+                bDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
+                bDc.clear();
+                
+                bDc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
+                
+                if (bDc has :setFill) {
+                    var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
+                    var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+                    // Create the 32-bit ARGB value (102 out of 255 is ~40% opacity)
+                    var alphaColor = (102 << 24) | baseRgb; 
+                    
+                    // setColor strips alpha, so setFill MUST be used
+                    bDc.setFill(alphaColor);
+                } else {
+                    var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
+                    bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
                 }
+                
+                bDc.fillRectangle(0, 0, rectW, rectH);
+                dc.drawBitmap(rectX, rectY, bufferedBitmap);
             }
             dc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
         } else {
@@ -773,9 +769,7 @@ class TideWatchView extends WatchUi.WatchFace {
                             :width => mScreenWidth,
                             :height => bitmapHeight
                         });
-                        if (bitmapRef != null) {
-                            mCachedGraphBitmap = bitmapRef.get() as Graphics.BufferedBitmap;
-                        }
+                        mCachedGraphBitmap = bitmapRef.get() as Graphics.BufferedBitmap;
                     } catch (e) {
                         mCachedGraphBitmap = null;
                     }
@@ -1363,7 +1357,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         var needsSync = false;
         if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
-           (curApiKey != null && !curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
+           (!curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
             needsSync = true;
         }
 
@@ -1387,7 +1381,7 @@ class TideWatchView extends WatchUi.WatchFace {
         logMemoryUsage();
         
         if (kpay != null && data instanceof Dictionary) {
-            kpay.onBackgroundData(data);
+            kpay.onBackgroundData(data as Dictionary);
 
             var event = data.get("kpay_event");
             if (event instanceof Dictionary) {
