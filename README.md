@@ -19,6 +19,9 @@ If you like this watch face, please consider supporting its development:
   - Optional swell graph layering to see swell trends alongside tide.
   - Toggle date and day display for a cleaner look.
 - **Smart Background Updates**: Efficient data fetching to minimize battery impact while keeping indicators up-to-date.
+- **Forecast Window Modes**:
+  - **Full Forecast**: Watches with >32KB background task memory support a full 48-hour forecast window.
+  - **Short Forecast (12-Hour)**: Select low-memory watches (e.g., Forerunner 55, Forerunner 245, Venu Sq, Vivoactive 3m) support a 12-hour forecast window to ensure reliable sync operations within strict memory budgets.
 - **Status Indicators at a Glance**:
   - **Yellow**: Indicates stale data (older than 12 hours) or a recent sync error.
   - **Red**: Indicates an active synchronization error or very low battery.
@@ -37,19 +40,26 @@ To set up Tide Watch:
 
 ## Supported Devices
 
-Tide Watch supports most modern Garmin wearables, including:
-
-- **Fenix** (5 Plus, 6, 7, 8, E and all Solar editions)
-- **Forerunner** (55, 165, 245, 255, 265, 570, 745, 945, 955, 965, 970)
-- **Venu** (Original, 2, 3, 4, Sq, Sq 2, Venu Air)
-- **Instinct** (2, 2s, 2x, 3, Crossover, E)
-- **Descent** (G1, G2, Mk2, Mk3)
+### Fully Supported (Full 48-Hour Forecast Mode)
+Tide Watch supports the following Garmin wearables in full 48-hour forecast mode:
+- **Fenix** (7, 8, E and all Solar/Pro editions)
+- **Forerunner** (165, 255, 265, 570, 745, 945, 955, 965, 970)
+- **Venu** (Original, 2, 3, 4, Sq 2, Venu Air)
+- **Instinct** (3 AMOLED editions)
+- **Descent** (G2, Mk2, Mk3)
 - **Epix** (Gen 2, Pro editions)
-- **Enduro** (Original, 3)
+- **Enduro** (3)
 - **MARQ** (Original and Gen 2)
 - **Vivoactive** (3m, 4, 5, 6)
 - **Approach** (S50, S70)
 - **D2** (Air, Mach 1, Mach 2)
+
+### Limited Support (Short 12-Hour Forecast Mode)
+The following low-memory watches are supported but operate in a limited 12-hour forecast mode to stay within strict background memory budgets:
+- **Fenix** (5 Plus series, 6 series)
+- **Forerunner** (55, 245, 245 Music)
+- **Venu** (Venu Sq, Venu Sq Music)
+- **Enduro** (Original)
 
 ## License
 

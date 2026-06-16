@@ -72,7 +72,7 @@
             <!-- <iq:product id="instinct2x"/> not enough memory -->
             <iq:product id="instinct3amoled45mm"/>
             <iq:product id="instinct3amoled50mm"/>
-            <iq:product id="instinct3solar45mm"/>
+            <!-- <iq:product id="instinct3solar45mm"/> wrong form factor -->
             <!-- <iq:product id="instinctcrossover"/> not enough memory -->
             <!-- <iq:product id="instinctcrossoveramoled"/> not enough memory -->
             <!-- <iq:product id="instincte40mm"/> not enough memory -->

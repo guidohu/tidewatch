@@ -54,7 +54,7 @@ venux1.resourcePath = $(venux1.resourcePath);resources/icons/65x65
 descentg1.resourcePath = $(descentg1.resourcePath);resources/icons/62x62
 instinct2.resourcePath = $(instinct2.resourcePath);resources/icons/62x62
 instinct2x.resourcePath = $(instinct2x.resourcePath);resources/icons/62x62
-instinct3solar45mm.resourcePath = $(instinct3solar45mm.resourcePath);resources/icons/62x62
+instinct3solar45mm.resourcePath = $(instinct3solar45mm.resourcePath);resources/icons/62x62;resources/low-memory
 instincte45mm.resourcePath = $(instincte45mm.resourcePath);resources/icons/62x62
 
 # 40x40

@@ -146,7 +146,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onReceivePing(responseCode as Number, data as Dictionary?) as Void {
         // System.println("Ping response: " + responseCode);
         if (responseCode != 200) {
-            System.println("Ping failed, data: " + data);
+            System.println("ERROR: Ping failed with response code: " + responseCode + ", data: " + data);
         }
         // Always proceed to the next request
         makeBigDataCloudRequest();
@@ -270,7 +270,7 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function onReceiveBigDataCloud(responseCode as Number, data as Dictionary?) as Void {
         // System.println("BigDataCloud response: " + responseCode);
-        if (responseCode != 200) { System.println("BigDataCloud data: " + data); }
+        if (responseCode != 200) { System.println("ERROR: BigDataCloud failed with response code: " + responseCode + ", data: " + data); }
         var spotName = null;
         var success = false;
 
@@ -343,7 +343,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onReceiveWeather(responseCode as Number, data as Dictionary?) as Void {
         // System.println("Weather response: " + responseCode);
         if (responseCode != 200) { 
-            System.println("Weather data: " + data);
+            System.println("ERROR: Weather failed with response code: " + responseCode + ", data: " + data);
             var errCode = DataKeysBG.ERROR_OTHER;
             if (responseCode == 402 || responseCode == 429) {
                 errCode = DataKeysBG.ERROR_QUOTA_EXCEEDED;
@@ -448,7 +448,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onReceiveTide(responseCode as Number, data as Dictionary?) as Void {
         // System.println("Tide response: " + responseCode);
         if (responseCode != 200) {
-            System.println("Tide data: " + data);
+            System.println("ERROR: Tide failed with response code: " + responseCode + ", data: " + data);
         }
         logMemoryUsage();
         if (handleQuotaError(responseCode)) { return; }
@@ -540,7 +540,7 @@ class TideWatchBackground extends System.ServiceDelegate {
     function onReceiveExtremes(responseCode as Number, data as Dictionary?) as Void {
         // System.println("Extremes response: " + responseCode);
         if (responseCode != 200) { 
-            System.println("Extremes data: " + data);
+            System.println("ERROR: Extremes failed with response code: " + responseCode + ", data: " + data);
         }
         logMemoryUsage();
         if (handleQuotaError(responseCode)) {
