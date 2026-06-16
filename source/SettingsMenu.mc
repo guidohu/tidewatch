@@ -399,9 +399,21 @@ class AboutMenu extends WatchUi.Menu2 {
         var lastSyncStr = formatTime(AppStorage.getDataUpdatedAt(), "Never");
         var nextSyncStr = formatTime(AppStorage.getNextSyncTime(), "None");
         
+        var stationName = AppStorage.getTideStationName();
+        var stationCountry = AppStorage.getTideStationCountry();
+        var stationStr = "Unknown";
+        if (stationName != null && !stationName.equals("")) {
+            if (stationCountry != null && !stationCountry.equals("")) {
+                stationStr = stationName + ", " + stationCountry;
+            } else {
+                stationStr = stationName;
+            }
+        }
+        
         addItem(new WatchUi.MenuItem("Version", Version.STRING, "version", {}));
         addItem(new WatchUi.MenuItem("Last Sync", lastSyncStr, "sync", {}));
         addItem(new WatchUi.MenuItem("Next Sync", nextSyncStr, "next_sync", {}));
+        addItem(new WatchUi.MenuItem("Station", stationStr, "station", {}));
         addItem(new WatchUi.MenuItem("openwaters.io", "used for tide data", "ow", {}));
         addItem(new WatchUi.MenuItem("stormglass.io", "used for weather data", "stormglass", {}));
         addItem(new WatchUi.MenuItem("bigdatacloud.com", "used for geo data", "bigdatacloud", {}));

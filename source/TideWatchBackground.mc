@@ -454,6 +454,19 @@ class TideWatchBackground extends System.ServiceDelegate {
         if (handleQuotaError(responseCode)) { return; }
 
         if (responseCode == 200 && data != null && data instanceof Dictionary && data.hasKey("data")) {
+            if (data.hasKey("station")) {
+                var station = data.get("station");
+                if (station instanceof Dictionary) {
+                    var name = station.get("name") as String?;
+                    var country = station.get("country") as String?;
+                    if (name != null) {
+                        AppStorageBG.setTideStationName(name);
+                    }
+                    if (country != null) {
+                        AppStorageBG.setTideStationCountry(country);
+                    }
+                }
+            }
             var pts = data.get("data");
             if (pts instanceof Array) {
                 var ptsSize = pts.size();

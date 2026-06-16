@@ -22,6 +22,14 @@ module AppStorageBG {
         Application.Storage.setValue("spotName", val);
     }
 
+    public function setTideStationName(val as String?) as Void {
+        Application.Storage.setValue("tideStationName", val);
+    }
+
+    public function setTideStationCountry(val as String?) as Void {
+        Application.Storage.setValue("tideStationCountry", val);
+    }
+
     public function getAnonymousUserId() as String? {
         return Application.Storage.getValue("anonymous_user_id") as String?;
     }
@@ -150,6 +158,20 @@ module AppStorage {
     }
     public function setSpotName(val as String?) as Void {
         AppStorageBG.setSpotName(val);
+    }
+
+    public function getTideStationName() as String? {
+        return Application.Storage.getValue("tideStationName") as String?;
+    }
+    public function setTideStationName(val as String?) as Void {
+        AppStorageBG.setTideStationName(val);
+    }
+
+    public function getTideStationCountry() as String? {
+        return Application.Storage.getValue("tideStationCountry") as String?;
+    }
+    public function setTideStationCountry(val as String?) as Void {
+        AppStorageBG.setTideStationCountry(val);
     }
 
     public function getAnonymousUserId() as String? {
@@ -319,6 +341,8 @@ module AppStorage {
         clearTideTimelineUpdatedAt();
         clearTideExtremesUpdatedAt();
         clearNextSyncTime();
+        clearTideStationName();
+        clearTideStationCountry();
         setDataUpdatedAt(0);
     }
 
@@ -330,5 +354,11 @@ module AppStorage {
     }
     public function clearWaveData() as Void {
         Application.Storage.setValue("waveData", null);
+    }
+    public function clearTideStationName() as Void {
+        Application.Storage.deleteValue("tideStationName");
+    }
+    public function clearTideStationCountry() as Void {
+        Application.Storage.deleteValue("tideStationCountry");
     }
 }
