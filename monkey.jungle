@@ -50,12 +50,6 @@ fr970.resourcePath = $(fr970.resourcePath);resources/icons/65x65
 venu445mm.resourcePath = $(venu445mm.resourcePath);resources/icons/65x65
 venux1.resourcePath = $(venux1.resourcePath);resources/icons/65x65
 
-# 62x62
-descentg1.resourcePath = $(descentg1.resourcePath);resources/icons/62x62
-instinct2.resourcePath = $(instinct2.resourcePath);resources/icons/62x62
-instinct2x.resourcePath = $(instinct2x.resourcePath);resources/icons/62x62
-instinct3solar45mm.resourcePath = $(instinct3solar45mm.resourcePath);resources/icons/62x62;resources/low-memory
-instincte45mm.resourcePath = $(instincte45mm.resourcePath);resources/icons/62x62
 
 # 40x40
 descentmk2.resourcePath = $(descentmk2.resourcePath);resources/icons/40x40
@@ -109,7 +103,6 @@ fr170.resourcePath = $(fr170.resourcePath);resources/icons/54x54
 fr170m.resourcePath = $(fr170m.resourcePath);resources/icons/54x54
 fr57042mm.resourcePath = $(fr57042mm.resourcePath);resources/icons/54x54
 fr70.resourcePath = $(fr70.resourcePath);resources/icons/54x54
-instinct2s.resourcePath = $(instinct2s.resourcePath);resources/icons/54x54
 venu441mm.resourcePath = $(venu441mm.resourcePath);resources/icons/54x54
 vivoactive6.resourcePath = $(vivoactive6.resourcePath);resources/icons/54x54
 
@@ -118,15 +111,6 @@ fr55.resourcePath = $(fr55.resourcePath);resources/icons/35x35;resources/low-mem
 legacyherofirstavenger.resourcePath = $(legacyherofirstavenger.resourcePath);resources/icons/35x35
 legacysagadarthvader.resourcePath = $(legacysagadarthvader.resourcePath);resources/icons/35x35
 vivoactive4.resourcePath = $(vivoactive4.resourcePath);resources/icons/35x35
-
-# 26x26
-instinctcrossover.resourcePath = $(instinctcrossover.resourcePath);resources/icons/26x26
-
-# 38x38
-instinctcrossoveramoled.resourcePath = $(instinctcrossoveramoled.resourcePath);resources/icons/38x38
-
-# 52x52
-instincte40mm.resourcePath = $(instincte40mm.resourcePath);resources/icons/52x52
 
 # 30x30
 legacyherocaptainmarvel.resourcePath = $(legacyherocaptainmarvel.resourcePath);resources/icons/30x30
