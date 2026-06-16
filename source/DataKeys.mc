@@ -1,7 +1,7 @@
 import Toybox.Lang;
 
 (:background)
-module DataKeys {
+module DataKeysBG {
     enum {
         TIDE_TYPE_HIGH = 10,
         TIDE_TYPE_LOW = 11,
@@ -12,8 +12,35 @@ module DataKeys {
         ERROR_PHONE_CONN_MIN = -200,
         ERROR_PHONE_CONN_MAX = -100,
         ERROR_INVALID_KEY = -401,
+        ERROR_APP_ID_MISSING = -1001,
+        ERROR_LOCATION_MISSING = -1002,
         ERROR_OTHER = -1,
-        
+
+        DATUM_MSL = 1,
+        DATUM_MLLW = 2,
+        DATUM_LAT = 3,
+    }
+}
+
+module DataKeys {
+    enum {
+        TIDE_TYPE_HIGH = DataKeysBG.TIDE_TYPE_HIGH,
+        TIDE_TYPE_LOW = DataKeysBG.TIDE_TYPE_LOW,
+        UNIT_METER = DataKeysBG.UNIT_METER,
+        UNIT_FEET = DataKeysBG.UNIT_FEET,
+        ERROR_QUOTA_EXCEEDED = DataKeysBG.ERROR_QUOTA_EXCEEDED,
+        ERROR_NO_DATA = DataKeysBG.ERROR_NO_DATA,
+        ERROR_PHONE_CONN_MIN = DataKeysBG.ERROR_PHONE_CONN_MIN,
+        ERROR_PHONE_CONN_MAX = DataKeysBG.ERROR_PHONE_CONN_MAX,
+        ERROR_INVALID_KEY = DataKeysBG.ERROR_INVALID_KEY,
+        ERROR_APP_ID_MISSING = DataKeysBG.ERROR_APP_ID_MISSING,
+        ERROR_LOCATION_MISSING = DataKeysBG.ERROR_LOCATION_MISSING,
+        ERROR_OTHER = DataKeysBG.ERROR_OTHER,
+
+        DATUM_MSL = DataKeysBG.DATUM_MSL,
+        DATUM_MLLW = DataKeysBG.DATUM_MLLW,
+        DATUM_LAT = DataKeysBG.DATUM_LAT,
+
         SETTING_UNIT_METERS = 0,
         SETTING_UNIT_FEET = 1,
 
@@ -34,8 +61,5 @@ module DataKeys {
         TIME_FORMAT_12_H = 1,
 
         DATUM_STATION_DEFAULT = 0,
-        DATUM_MSL = 1,
-        DATUM_MLLW = 2,
-        DATUM_LAT = 3,
     }
 }

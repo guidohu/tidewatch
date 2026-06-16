@@ -48,4 +48,6 @@
     <string id="SyncExecuting">Scheduled in 5 min</string>
     <string id="EnableKPayTitle">Enable Payments</string>
     <string id="ExperimentsTitle">Experiments</string>
+    <!-- Forecast Window: supports "normal" (48 hours) and "short" (20 hours) -->
+    <string id="ForecastWindow">normal</string>
 </resources>

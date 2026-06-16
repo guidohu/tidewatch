@@ -1,9 +1,16 @@
 import Toybox.Lang;
 
 (:background)
-module Constants {
+module ConstantsBG {
     const SECONDS_IN_HOUR = 3600;
     const DATA_UPDATE_INTERVAL_SEC = 300; // 5 minutes
     const FAST_SYNC_FRESHNESS_THRESHOLD_SEC = 1800; // 30 minutes
     const SLOW_SYNC_FRESHNESS_THRESHOLD_SEC = 21600; // 6 hours
+}
+
+module Constants {
+    const SECONDS_IN_HOUR = ConstantsBG.SECONDS_IN_HOUR;
+    const DATA_UPDATE_INTERVAL_SEC = ConstantsBG.DATA_UPDATE_INTERVAL_SEC;
+    const FAST_SYNC_FRESHNESS_THRESHOLD_SEC = ConstantsBG.FAST_SYNC_FRESHNESS_THRESHOLD_SEC;
+    const SLOW_SYNC_FRESHNESS_THRESHOLD_SEC = ConstantsBG.SLOW_SYNC_FRESHNESS_THRESHOLD_SEC;
 }
