@@ -351,12 +351,16 @@ class TideWatchBackground extends System.ServiceDelegate {
                 var errors = data.get("errors") as Dictionary;
                 if (errors.hasKey("key")) {
                     var keyErr = errors.get("key") as String;
-                    if (keyErr.equals("API key is invalid")) {
+                    if (keyErr.equals("API key is invalid") || keyErr.equals("API key is invalid (cached)")) {
                         errCode = DataKeysBG.ERROR_INVALID_KEY;
                     }
                 }
             }
             AppStorageBG.setWeatherError(errCode);
+            if (errCode == DataKeysBG.ERROR_INVALID_KEY) {
+                AppStorageBG.setWeatherUpdatedAt(Time.now().value());
+                mDataUpdatedThisRun = true;
+            }
         } else {
             AppStorageBG.clearWeatherError();
         }
