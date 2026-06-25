@@ -189,8 +189,8 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // 2. Error Check
-        var apiKey = Application.Properties.getValue("StormglassApiKey") as String;
-        var hasApiKey = (!apiKey.equals(""));
+        var apiKey = Application.Properties.getValue("StormglassApiKey") as String?;
+        var hasApiKey = (apiKey != null && !apiKey.equals(""));
 
         var gpsLat = Application.Properties.getValue("GpsLat") as Numeric or String or Null;
         var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
@@ -1356,8 +1356,8 @@ class TideWatchView extends WatchUi.WatchFace {
         var curApiKey = Application.Properties.getValue("StormglassApiKey");
 
         var needsSync = false;
-        if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
-           (!curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
+        var apiKeyChanged = (curApiKey == null && mLastApiKey != null) || (curApiKey != null && !curApiKey.equals(mLastApiKey));
+        if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || apiKeyChanged || kpayChanged) {
             needsSync = true;
         }
 
