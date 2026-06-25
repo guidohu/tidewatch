@@ -296,23 +296,14 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param use24Hour Boolean indicating whether to format hours in 24h style.
      */
     function updateCacheAndCalculations(now as Number, targetTideUnit as Number, targetSwellUnit as Number, use24Hour as Boolean) as Void {
-        var tideUnits = mCachedTideUnits;
-        var swellUnits = mCachedSwellUnits;
-        var tideColorIdx = mCachedTideColorIdx;
-        var graphColorIdx = mCachedGraphColorIdx;
-        var baseColorIdx = mCachedBaseColorIdx;
-        var showSwellGraph = mCachedShowSwellGraph;
-        var showSwellSummary = mCachedShowSwellSummary;
-        var showDate = mCachedShowDate;
-
-        var currentHash = tideUnits +
-            (swellUnits << 2) +
-            (tideColorIdx << 4) +
-            (graphColorIdx << 8) +
-            (baseColorIdx << 12) +
-            ((showSwellGraph == true ? 1 : 0) << 16) +
-            ((showSwellSummary == true ? 1 : 0) << 17) +
-            ((showDate == true ? 1 : 0) << 18) +
+        var currentHash = mCachedTideUnits +
+            (mCachedSwellUnits << 2) +
+            (mCachedTideColorIdx << 4) +
+            (mCachedGraphColorIdx << 8) +
+            (mCachedBaseColorIdx << 12) +
+            ((mCachedShowSwellGraph == true ? 1 : 0) << 16) +
+            ((mCachedShowSwellSummary == true ? 1 : 0) << 17) +
+            ((mCachedShowDate == true ? 1 : 0) << 18) +
             ((use24Hour == true ? 1 : 0) << 19);
 
         var dataUpdatedAt = AppStorage.getDataUpdatedAt();
