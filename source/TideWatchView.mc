@@ -1208,9 +1208,19 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function getRgbFromColor(color as Number) as Array<Number> {
         switch (color) {
+            case Graphics.COLOR_WHITE: return [255, 255, 255];
+            case Graphics.COLOR_LT_GRAY: return [170, 170, 170];
+            case Graphics.COLOR_DK_GRAY: return [85, 85, 85];
+            case Graphics.COLOR_BLACK: return [0, 0, 0];
+            case Graphics.COLOR_RED: return [255, 0, 0];
+            case Graphics.COLOR_DK_RED: return [170, 0, 0];
+            case Graphics.COLOR_ORANGE: return [255, 85, 0];
             case Graphics.COLOR_YELLOW: return [255, 255, 0];
+            case Graphics.COLOR_GREEN: return [0, 255, 0];
+            case Graphics.COLOR_DK_GREEN: return [0, 170, 0];
             case Graphics.COLOR_BLUE: return [0, 0, 255];
             case Graphics.COLOR_DK_BLUE: return [0, 0, 170];
+            case Graphics.COLOR_PURPLE: return [170, 0, 255];
             case Graphics.COLOR_PINK: return [255, 0, 170];
             default:
                 var r = (color >> 16) & 0xFF;
