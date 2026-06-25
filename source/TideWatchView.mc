@@ -176,18 +176,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // Actual App
         var now = Time.now().value();
-        var tideUnits = mCachedTideUnits;
-        var swellUnits = mCachedSwellUnits;
-        var targetTideUnit = (tideUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
-        var targetSwellUnit = (swellUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
-        var tideColorIdx = mCachedTideColorIdx;
-        var graphColorIdx = mCachedGraphColorIdx;
-        var baseColorIdx = mCachedBaseColorIdx;
-        var showSwellGraph = mCachedShowSwellGraph;
-        var showSwellSummary = mCachedShowSwellSummary;
-        var showDate = mCachedShowDate;
-        var timeFormatVal = mCachedTimeFormatVal;
-        var use24Hour = timeFormatVal == DataKeys.TIME_FORMAT_24_H;
+        var targetTideUnit = (mCachedTideUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var targetSwellUnit = (mCachedSwellUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var use24Hour = mCachedTimeFormatVal == DataKeys.TIME_FORMAT_24_H;
 
         // Fallback size setup in case onLayout wasn't triggered
         if (mScreenWidth == 0) {
@@ -196,9 +187,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         updateCacheAndCalculations(now, targetTideUnit, targetSwellUnit, use24Hour);
 
-        var tideColor = getColorFromIndex(tideColorIdx);
-        var graphColor = getColorFromIndex(graphColorIdx);
-        var baseColor = getColorFromIndex(baseColorIdx);
+        var tideColor = getColorFromIndex(mCachedTideColorIdx);
+        var graphColor = getColorFromIndex(mCachedGraphColorIdx);
+        var baseColor = getColorFromIndex(mCachedBaseColorIdx);
 
         if (mInLowPowerMode) {
             tideColor = blendWithBlack(tideColor, 0.95);
@@ -223,7 +214,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
 
         if (!LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
-             if (showDate || mInLowPowerMode) {
+             if (mCachedShowDate || mInLowPowerMode) {
                  drawDateCentered(dc, baseColor);
              }
 
@@ -260,17 +251,17 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // Draw Date/Day centered just below time
-        if (showDate || mInLowPowerMode) {
+        if (mCachedShowDate || mInLowPowerMode) {
             drawDateCentered(dc, baseColor);
         }
 
         // Swell Section
-        if (showSwellSummary && !mInLowPowerMode) {
+        if (mCachedShowSwellSummary && !mInLowPowerMode) {
             drawSwellData(dc, baseColor, hasApiKey);
         }
 
         // Graph Section
-        drawGraphs(dc, graphColor, baseColor, showSwellGraph, now);
+        drawGraphs(dc, graphColor, baseColor, mCachedShowSwellGraph, now);
 
         // Tide Change Text (drawn on top of the graph with a cutout background)
         drawTideChangeText(dc, tideColor, baseColor, mScreenHeight * 0.64 + 58 * mScale);
