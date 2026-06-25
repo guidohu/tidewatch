@@ -792,6 +792,21 @@ class TideWatchView extends WatchUi.WatchFace {
             var lastX = -1, lastY = -1;
             if (mcTideData != null) {
                 var tDataArray = mcTideData as Array;
+
+                var N = 12;
+                var shadeColors = new [N] as Array<Number>;
+                var jFractions = new [N + 1] as Array<Float>;
+                if (!mInLowPowerMode) {
+                    for (var j = 0; j < N; j++) {
+                        var fraction = j.toFloat() / (N - 1).toFloat();
+                        var ratio = 0.05 + 0.60 * (1.0 - fraction * fraction);
+                        shadeColors[j] = blendWithBlack(graphColor, ratio);
+                    }
+                    for (var j = 0; j <= N; j++) {
+                        jFractions[j] = j.toFloat() / N.toFloat();
+                    }
+                }
+
                 for (var i = 0; i < tDataArray.size(); i++) {
                     var p = tDataArray[i] as Array;
                     var tTs = p[0] as Number;
@@ -800,25 +815,28 @@ class TideWatchView extends WatchUi.WatchFace {
                     if (hVal != null) {
                         var hFloat = convertHeight(hVal as Number, mcTideUnitApi, DataKeys.UNIT_METER);
                         var y = graphY - graphHeight * (hFloat - mMinH) / (mMaxH - mMinH);
+                        var xNum = x.toNumber();
+                        var yNum = y.toNumber();
+
                         if (lastX >= 0 && (x >= -50 && x <= mScreenWidth + 50)) {
                             // Draw shade under the line (fades from solid to transparent towards the bottom)
                             if (!mInLowPowerMode) {
-                                var N = 12;
+                                var diffLastY = graphY - lastY;
+                                var diffY = graphY - y;
                                 for (var j = 0; j < N; j++) {
-                                    var fraction = j.toFloat() / (N - 1).toFloat();
-                                    var ratio = 0.05 + 0.60 * (1.0 - fraction * fraction);
-                                    var shadeColor = blendWithBlack(graphColor, ratio);
+                                    var f1 = jFractions[j];
+                                    var f2 = jFractions[j + 1];
                                     
-                                    var ly1 = lastY + (graphY - lastY) * j.toFloat() / N.toFloat();
-                                    var ly2 = lastY + (graphY - lastY) * (j + 1).toFloat() / N.toFloat();
-                                    var ry1 = y + (graphY - y) * j.toFloat() / N.toFloat();
-                                    var ry2 = y + (graphY - y) * (j + 1).toFloat() / N.toFloat();
+                                    var ly1 = lastY + diffLastY * f1;
+                                    var ly2 = lastY + diffLastY * f2;
+                                    var ry1 = y + diffY * f1;
+                                    var ry2 = y + diffY * f2;
                                     
-                                    targetDc.setColor(shadeColor, Graphics.COLOR_TRANSPARENT);
+                                    targetDc.setColor(shadeColors[j], Graphics.COLOR_TRANSPARENT);
                                     targetDc.fillPolygon([
                                         [lastX, ly1.toNumber()],
-                                        [x.toNumber(), ry1.toNumber()],
-                                        [x.toNumber(), ry2.toNumber()],
+                                        [xNum, ry1.toNumber()],
+                                        [xNum, ry2.toNumber()],
                                         [lastX, ly2.toNumber()]
                                     ] as Array<[Lang.Numeric, Lang.Numeric]>);
                                 }
@@ -826,10 +844,10 @@ class TideWatchView extends WatchUi.WatchFace {
 
                             // Draw the actual line on top
                             targetDc.setColor(graphColor, Graphics.COLOR_TRANSPARENT);
-                            targetDc.drawLine(lastX, lastY, x.toNumber(), y.toNumber());
-                            targetDc.drawLine(lastX, lastY+1, x.toNumber(), y.toNumber()+1);
+                            targetDc.drawLine(lastX, lastY, xNum, yNum);
+                            targetDc.drawLine(lastX, lastY+1, xNum, yNum+1);
                         }
-                        lastX = x.toNumber(); lastY = y.toNumber();
+                        lastX = xNum; lastY = yNum;
                     } else {
                         lastX = -1; // Gap in data
                     }
