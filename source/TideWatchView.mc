@@ -84,7 +84,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var forecastWindow = Application.loadResource(Rez.Strings.ForecastWindow) as String;
         var forecastWindowSec = 48 * 3600;
         var forecastStartOffsetSec = 4 * 3600;
-        if (forecastWindow.equals("short") || forecastWindow.equals("small")) {
+        if (forecastWindow != null && (forecastWindow.equals("short") || forecastWindow.equals("small"))) {
             forecastWindowSec = 12 * 3600;
             forecastStartOffsetSec = 4 * 3600;
         }
@@ -190,7 +190,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // 2. Error Check
         var apiKey = Application.Properties.getValue("StormglassApiKey") as String;
-        var hasApiKey = (!apiKey.equals(""));
+        var hasApiKey = (apiKey != null && !apiKey.equals(""));
 
         var gpsLat = Application.Properties.getValue("GpsLat") as Numeric or String or Null;
         var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
@@ -1357,7 +1357,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
         var needsSync = false;
         if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
-           (!curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
+           ((curApiKey == null && mLastApiKey != null) || (curApiKey != null && !curApiKey.equals(mLastApiKey))) || kpayChanged) {
             needsSync = true;
         }
 
