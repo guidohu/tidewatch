@@ -793,6 +793,10 @@ class TideWatchView extends WatchUi.WatchFace {
             if (mcTideData != null) {
                 var tDataArray = mcTideData as Array;
 
+                // Precompute gradient properties outside the O(Points * N) loop.
+                // N represents the number of vertical segments to draw per line segment.
+                // shadeColors caches the N discrete gradient colors for the polygon segments.
+                // jFractions caches the fractional boundaries (0.0 to 1.0) to avoid redundant float divisions.
                 var N = 12;
                 var shadeColors = new [N] as Array<Number>;
                 var jFractions = new [N + 1] as Array<Float>;
