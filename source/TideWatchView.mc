@@ -17,6 +17,7 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastDatum;
     var mLastApiKey;
 
+    // Cached configuration properties
     var mCachedTideUnits as Number = 0;
     var mCachedSwellUnits as Number = 1;
     var mCachedTideColorIdx as Number = 10;
