@@ -17,6 +17,17 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastDatum;
     var mLastApiKey;
 
+    // Cached configuration properties
+    var mCachedTideUnits as Number = 0;
+    var mCachedSwellUnits as Number = 1;
+    var mCachedTideColorIdx as Number = 10;
+    var mCachedGraphColorIdx as Number = 10;
+    var mCachedBaseColorIdx as Number = 4;
+    var mCachedShowSwellGraph as Boolean = false;
+    var mCachedShowSwellSummary as Boolean = false;
+    var mCachedShowDate as Boolean = true;
+    var mCachedTimeFormatVal as Number = 0;
+
     const METERS_TO_FEET = 3.28084;
     const STALE_DATA_THRESHOLD_SEC = 43200; // 12 hours
     const ERROR_DISPLAY_WINDOW_SEC = 300;   // 5 minutes
@@ -96,7 +107,23 @@ class TideWatchView extends WatchUi.WatchFace {
         mLastDatum = Application.Properties.getValue("TideDatum");
         mLastApiKey = Application.Properties.getValue("StormglassApiKey");
 
+        cacheProperties();
         initializeKPay(true);
+    }
+
+    /**
+     * Reads all required properties and caches them to avoid performance hits on update.
+     */
+    function cacheProperties() as Void {
+        mCachedTideUnits = Application.Properties.getValue("TideUnits") as Number;
+        mCachedSwellUnits = Application.Properties.getValue("SwellUnits") as Number;
+        mCachedTideColorIdx = Application.Properties.getValue("TideColor") as Number;
+        mCachedGraphColorIdx = Application.Properties.getValue("GraphColor") as Number;
+        mCachedBaseColorIdx = Application.Properties.getValue("BaseColor") as Number;
+        mCachedShowSwellGraph = Application.Properties.getValue("ShowSwellGraph") as Boolean;
+        mCachedShowSwellSummary = Application.Properties.getValue("ShowSwellSummary") as Boolean;
+        mCachedShowDate = Application.Properties.getValue("ShowDate") as Boolean;
+        mCachedTimeFormatVal = Application.Properties.getValue("TimeFormat") as Number;
     }
 
     /**
@@ -149,18 +176,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         // Actual App
         var now = Time.now().value();
-        var tideUnits = Application.Properties.getValue("TideUnits");
-        var swellUnits = Application.Properties.getValue("SwellUnits");
-        var targetTideUnit = (tideUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
-        var targetSwellUnit = (swellUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
-        var tideColorIdx = Application.Properties.getValue("TideColor") as Lang.Number;
-        var graphColorIdx = Application.Properties.getValue("GraphColor") as Lang.Number;
-        var baseColorIdx = Application.Properties.getValue("BaseColor") as Lang.Number;
-        var showSwellGraph = Application.Properties.getValue("ShowSwellGraph") as Boolean;
-        var showSwellSummary = Application.Properties.getValue("ShowSwellSummary");
-        var showDate = Application.Properties.getValue("ShowDate");
-        var timeFormatVal = Application.Properties.getValue("TimeFormat");
-        var use24Hour = timeFormatVal == DataKeys.TIME_FORMAT_24_H;
+        var targetTideUnit = (mCachedTideUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var targetSwellUnit = (mCachedSwellUnits == DataKeys.SETTING_UNIT_FEET) ? DataKeys.UNIT_FEET : DataKeys.UNIT_METER;
+        var use24Hour = mCachedTimeFormatVal == DataKeys.TIME_FORMAT_24_H;
 
         // Fallback size setup in case onLayout wasn't triggered
         if (mScreenWidth == 0) {
@@ -169,9 +187,9 @@ class TideWatchView extends WatchUi.WatchFace {
 
         updateCacheAndCalculations(now, targetTideUnit, targetSwellUnit, use24Hour);
 
-        var tideColor = getColorFromIndex(tideColorIdx);
-        var graphColor = getColorFromIndex(graphColorIdx);
-        var baseColor = getColorFromIndex(baseColorIdx);
+        var tideColor = getColorFromIndex(mCachedTideColorIdx);
+        var graphColor = getColorFromIndex(mCachedGraphColorIdx);
+        var baseColor = getColorFromIndex(mCachedBaseColorIdx);
 
         if (mInLowPowerMode) {
             tideColor = blendWithBlack(tideColor, 0.95);
@@ -196,7 +214,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
 
         if (!LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
-             if (showDate || mInLowPowerMode) {
+             if (mCachedShowDate || mInLowPowerMode) {
                  drawDateCentered(dc, baseColor);
              }
 
@@ -233,17 +251,17 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // Draw Date/Day centered just below time
-        if (showDate || mInLowPowerMode) {
+        if (mCachedShowDate || mInLowPowerMode) {
             drawDateCentered(dc, baseColor);
         }
 
         // Swell Section
-        if (showSwellSummary && !mInLowPowerMode) {
+        if (mCachedShowSwellSummary && !mInLowPowerMode) {
             drawSwellData(dc, baseColor, hasApiKey);
         }
 
         // Graph Section
-        drawGraphs(dc, graphColor, baseColor, showSwellGraph, now);
+        drawGraphs(dc, graphColor, baseColor, mCachedShowSwellGraph, now);
 
         // Tide Change Text (drawn on top of the graph with a cutout background)
         drawTideChangeText(dc, tideColor, baseColor, mScreenHeight * 0.64 + 58 * mScale);
@@ -278,23 +296,14 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param use24Hour Boolean indicating whether to format hours in 24h style.
      */
     function updateCacheAndCalculations(now as Number, targetTideUnit as Number, targetSwellUnit as Number, use24Hour as Boolean) as Void {
-        var tideUnits = Application.Properties.getValue("TideUnits") as Number;
-        var swellUnits = Application.Properties.getValue("SwellUnits") as Number;
-        var tideColorIdx = Application.Properties.getValue("TideColor") as Number;
-        var graphColorIdx = Application.Properties.getValue("GraphColor") as Number;
-        var baseColorIdx = Application.Properties.getValue("BaseColor") as Number;
-        var showSwellGraph = Application.Properties.getValue("ShowSwellGraph") as Boolean;
-        var showSwellSummary = Application.Properties.getValue("ShowSwellSummary") as Boolean;
-        var showDate = Application.Properties.getValue("ShowDate") as Boolean;
-
-        var currentHash = tideUnits +
-            (swellUnits << 2) +
-            (tideColorIdx << 4) +
-            (graphColorIdx << 8) +
-            (baseColorIdx << 12) +
-            ((showSwellGraph == true ? 1 : 0) << 16) +
-            ((showSwellSummary == true ? 1 : 0) << 17) +
-            ((showDate == true ? 1 : 0) << 18) +
+        var currentHash = mCachedTideUnits +
+            (mCachedSwellUnits << 2) +
+            (mCachedTideColorIdx << 4) +
+            (mCachedGraphColorIdx << 8) +
+            (mCachedBaseColorIdx << 12) +
+            ((mCachedShowSwellGraph == true ? 1 : 0) << 16) +
+            ((mCachedShowSwellSummary == true ? 1 : 0) << 17) +
+            ((mCachedShowDate == true ? 1 : 0) << 18) +
             ((use24Hour == true ? 1 : 0) << 19);
 
         var dataUpdatedAt = AppStorage.getDataUpdatedAt();
@@ -884,7 +893,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
             if (!mInLowPowerMode) {
                 // Grid Lines (either meters or feet depending on settings)
-                var tideUnits = Application.Properties.getValue("TideUnits");
+                var tideUnits = mCachedTideUnits;
                 var isFeet = (tideUnits == DataKeys.SETTING_UNIT_FEET);
                 var factor = isFeet ? METERS_TO_FEET : 1.0;
                 var minDisp = mMinH * factor;
@@ -1367,6 +1376,8 @@ class TideWatchView extends WatchUi.WatchFace {
         mLastGpsLon = gpsLon;
         mLastDatum = curDatum;
         mLastApiKey = curApiKey;
+
+        cacheProperties();
 
         if (needsSync) {
             TideWatchSettingsMenu.triggerImmediateSync(true);
