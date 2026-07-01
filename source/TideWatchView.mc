@@ -79,6 +79,7 @@ class TideWatchView extends WatchUi.WatchFace {
     var mScale as Float = 1.0;
     var mFontAssistantSmall as Graphics.FontDefinition? = null;
     var mInLowPowerMode as Boolean = false;
+    var mDisableAlwaysOnScreen as Boolean = false;
     var mTimeFont = null;
 
     /**
@@ -101,6 +102,9 @@ class TideWatchView extends WatchUi.WatchFace {
         }
         AppStorage.setForecastWindowSec(forecastWindowSec);
         AppStorage.setForecastStartOffsetSec(forecastStartOffsetSec);
+
+        var disableAlwaysOnScreenVal = Application.loadResource(Rez.Strings.DisableAlwaysOnScreen) as String;
+        mDisableAlwaysOnScreen = disableAlwaysOnScreenVal.equals("true");
 
         mLastGpsLat = Application.Properties.getValue("GpsLat");
         mLastGpsLon = Application.Properties.getValue("GpsLon");
@@ -130,8 +134,10 @@ class TideWatchView extends WatchUi.WatchFace {
      * Terminate hourly/periodic updates when entering low power sleep mode.
      */
     function onEnterSleep() as Void {
-        mInLowPowerMode = true;
-        WatchUi.requestUpdate();
+        if (!mDisableAlwaysOnScreen) {
+            mInLowPowerMode = true;
+            WatchUi.requestUpdate();
+        }
     }
 
     /**
@@ -152,7 +158,24 @@ class TideWatchView extends WatchUi.WatchFace {
         mScreenHeight = dc.getHeight();
         mScale = mScreenWidth.toFloat() / SCREEN_WIDTH_REFERENCE;
         mFontAssistantSmall = WatchUi.loadResource(Rez.Fonts.AssistantSmall) as Graphics.FontDefinition;
-        mTimeFont = WatchUi.loadResource(Rez.Strings.time_font);
+        var timeFontVal = WatchUi.loadResource(Rez.Strings.time_font) as String;
+        if (timeFontVal.equals("Assistant_50px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_50px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_45px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_45px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_40px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_40px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_30px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_30px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_20px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_20px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_15px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_15px) as Graphics.FontDefinition;
+        } else if (timeFontVal.equals("Assistant_12px")) {
+            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_12px) as Graphics.FontDefinition;
+        } else {
+            mTimeFont = null;
+        }
     }
 
     /**
@@ -570,7 +593,7 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     /**
-     * Renders current digital clock format and AM/PM labels relative to center.
+     * Renders current digital clock format relative to center.
      * @param dc The device context.
      * @param baseColor Color of base text.
      * @param use24Hour True for 24-hour style format.
@@ -579,27 +602,15 @@ class TideWatchView extends WatchUi.WatchFace {
         var clockTime = System.getClockTime();
         var hourAmPmVal = formatHourAmPm(clockTime.hour, use24Hour, true);
         var clockHour = hourAmPmVal[0];
-        var clockAmPm = hourAmPmVal[1] as String;
         var timeStr = Lang.format("$1$:$2$", [clockHour.format(use24Hour ? "%02d" : "%d"), clockTime.min.format("%02d")]);
         dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
         
         var font = Graphics.FONT_NUMBER_HOT;
-        if (mTimeFont != null && mTimeFont.equals("medium")) {
-            font = Graphics.FONT_NUMBER_MEDIUM;
+        if (mTimeFont != null) {
+            font = mTimeFont;
         }
         var timeY = mScreenHeight * 0.24 - 5 * mScale;
-        if (clockAmPm.length() > 0) {
-            var timeWidth = dc.getTextWidthInPixels(timeStr, font);
-            var amPmWidth = dc.getTextWidthInPixels(clockAmPm, Graphics.FONT_XTINY);
-            var gap = (2 * mScale).toNumber();
-            var totalW = timeWidth + gap + amPmWidth;
-            var startX = (mScreenWidth - totalW) / 2;
-            
-            dc.drawText(startX, timeY, font, timeStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(startX + timeWidth + gap, timeY - (8 * mScale), Graphics.FONT_XTINY, clockAmPm, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        } else {
-            drawCenteredText(dc, timeY, font, timeStr, baseColor);
-        }
+        drawCenteredText(dc, timeY, font, timeStr, baseColor);
     }
 
     /**

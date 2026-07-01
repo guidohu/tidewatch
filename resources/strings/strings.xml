@@ -50,4 +50,5 @@
     <string id="ExperimentsTitle">Experiments</string>
     <!-- Forecast Window: supports "normal" (48 hours) and "short" (20 hours) -->
     <string id="ForecastWindow">normal</string>
+    <string id="DisableAlwaysOnScreen">false</string>
 </resources>
