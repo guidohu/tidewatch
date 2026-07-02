@@ -80,7 +80,13 @@ class TideWatchView extends WatchUi.WatchFace {
     var mFontAssistantSmall as Graphics.FontDefinition? = null;
     var mInLowPowerMode as Boolean = false;
     var mDisableAlwaysOnScreen as Boolean = false;
-    var mTimeFont = null;
+    var mTimeFont as Graphics.FontDefinition? = null;
+    var mBatteryFont as Graphics.FontDefinition? = null;
+    var mDayDateFont as Graphics.FontDefinition? = null;
+    var mCurrentTideFont as Graphics.FontDefinition? = null;
+    var mTideExtremeFont as Graphics.FontDefinition? = null;
+    var mGraphLabelFont as Graphics.FontDefinition? = null;
+    var mLocationFont as Graphics.FontDefinition? = null;
 
     /**
      * Constructor. Calls parent WatchFace constructor.
@@ -149,6 +155,35 @@ class TideWatchView extends WatchUi.WatchFace {
     }
 
     /**
+     * Resolves a custom Assistant font from a string resource configuration.
+     * @param resourceId The symbol of the string resource defining the font name.
+     * @return The loaded custom font, or null if the setting evaluates to an unsupported value.
+     */
+    function getFontFromResource(resourceId as Lang.ResourceId) as Graphics.FontDefinition? {
+        var fontVal = WatchUi.loadResource(resourceId) as String;
+        if (fontVal.equals("Inter_50px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_50px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_45px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_45px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_40px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_40px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_30px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_30px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_20px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_20px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_15px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_15px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_12px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_12px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("Inter_10px")) {
+            return WatchUi.loadResource(Rez.Fonts.Inter_10px) as Graphics.FontDefinition;
+        } else if (fontVal.equals("AssistantSmall")) {
+            return WatchUi.loadResource(Rez.Fonts.AssistantSmall) as Graphics.FontDefinition;
+        }
+        return null;
+    }
+
+    /**
      * Lifecycle method called when the layout of the watch face needs to be loaded.
      * Pre-calculates and caches device screen boundaries and dynamic scaling ratios.
      * @param dc The device context representing the watch screen.
@@ -158,24 +193,13 @@ class TideWatchView extends WatchUi.WatchFace {
         mScreenHeight = dc.getHeight();
         mScale = mScreenWidth.toFloat() / SCREEN_WIDTH_REFERENCE;
         mFontAssistantSmall = WatchUi.loadResource(Rez.Fonts.AssistantSmall) as Graphics.FontDefinition;
-        var timeFontVal = WatchUi.loadResource(Rez.Strings.time_font) as String;
-        if (timeFontVal.equals("Assistant_50px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_50px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_45px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_45px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_40px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_40px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_30px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_30px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_20px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_20px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_15px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_15px) as Graphics.FontDefinition;
-        } else if (timeFontVal.equals("Assistant_12px")) {
-            mTimeFont = WatchUi.loadResource(Rez.Fonts.Assistant_12px) as Graphics.FontDefinition;
-        } else {
-            mTimeFont = null;
-        }
+        mTimeFont = getFontFromResource(Rez.Strings.time_font);
+        mBatteryFont = getFontFromResource(Rez.Strings.battery_font);
+        mDayDateFont = getFontFromResource(Rez.Strings.day_date_font);
+        mCurrentTideFont = getFontFromResource(Rez.Strings.current_tide_font);
+        mTideExtremeFont = getFontFromResource(Rez.Strings.tide_extreme_font);
+        mGraphLabelFont = getFontFromResource(Rez.Strings.graph_label_font);
+        mLocationFont = getFontFromResource(Rez.Strings.location_font);
     }
 
     /**
@@ -292,7 +316,7 @@ class TideWatchView extends WatchUi.WatchFace {
         // Next Extrema (drawn below the graph)
         if (mNextExtremaStr != null && !mInLowPowerMode) {
             var nextExtrema = mNextExtremaStr as String;
-            var font = Graphics.FONT_XTINY;
+            var font = mTideExtremeFont != null ? mTideExtremeFont : Graphics.FONT_XTINY;
             drawCenteredText(dc, mScreenHeight * 0.81 + 30 * mScale, font, nextExtrema, baseColor);
         }
 
@@ -576,7 +600,7 @@ class TideWatchView extends WatchUi.WatchFace {
         
         // Draw percentage text
         var percStr = mBattery.toNumber().toString() + "%";
-        var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+        var font = mBatteryFont != null ? mBatteryFont : ((mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY);
         dc.drawText(x - (2 * mScale).toNumber(), y, font, percStr, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Draw battery outline
@@ -620,7 +644,8 @@ class TideWatchView extends WatchUi.WatchFace {
      */
     function drawDateCentered(dc as Dc, baseColor as Number) as Void {
         var dateStr = getDay() + ", " + getDate();
-        drawCenteredText(dc, mScreenHeight * 0.38 - 5 * mScale, Graphics.FONT_XTINY, dateStr, baseColor);
+        var font = mDayDateFont != null ? mDayDateFont : Graphics.FONT_XTINY;
+        drawCenteredText(dc, mScreenHeight * 0.38 - 5 * mScale, font, dateStr, baseColor);
     }
 
     /**
@@ -629,7 +654,8 @@ class TideWatchView extends WatchUi.WatchFace {
      * @param tideColor Color for drawing tide numeric indicators.
      */
     function drawTideChangeText(dc as Dc, tideColor as Number, baseColor as Number, yVal as Float) as Void {
-        var numWidth = dc.getTextWidthInPixels(mTideNumStr, Graphics.FONT_NUMBER_MILD);
+        var tideFont = mCurrentTideFont != null ? mCurrentTideFont : Graphics.FONT_NUMBER_MILD;
+        var numWidth = dc.getTextWidthInPixels(mTideNumStr, tideFont);
         var mWidth = dc.getTextWidthInPixels(mDispUnit, Graphics.FONT_SMALL);
         
         var arrowOffset = (15 * mScale).toNumber();
@@ -637,7 +663,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var totalW = numWidth + mWidth + arrowOffset + sz;
         var startX = (mScreenWidth - totalW) / 2;
 
-        var fontHeight = dc.getFontHeight(Graphics.FONT_NUMBER_MILD);
+        var fontHeight = dc.getFontHeight(tideFont);
         var padX = (5 * mScale).toNumber();
         var rectW = totalW + 2 * padX;
         var rectH = (fontHeight * 0.68).toNumber() + (10 * mScale).toNumber();
@@ -690,7 +716,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var textY = yVal - 5 * mScale;
         var textClr = mInLowPowerMode ? baseColor : tideColor;
         dc.setColor(textClr, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(startX, textY, Graphics.FONT_NUMBER_MILD, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(startX, textY, tideFont, mTideNumStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.drawText(startX + numWidth, textY, Graphics.FONT_SMALL, mDispUnit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         drawArrow(dc, (startX + numWidth + mWidth + arrowOffset).toNumber(), textY.toNumber(), mIsRising, baseColor);
     }
@@ -992,7 +1018,7 @@ class TideWatchView extends WatchUi.WatchFace {
 
                 // Draw grid labels on the right side of the watch face on top of everything
                 targetDc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+                var font = mGraphLabelFont != null ? mGraphLabelFont : ((mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY);
                 for (var i = 0; i < gridLabels.size(); i++) {
                     var item = gridLabels[i] as Array;
                     var gy = item[0] as Number;
@@ -1029,7 +1055,7 @@ class TideWatchView extends WatchUi.WatchFace {
         var isStale = (now - mLastDataUpdatedAt > STALE_DATA_THRESHOLD_SEC);
         var showSyncError = (mSyncError != null && mErrorAt != null && (now - mErrorAt < ERROR_DISPLAY_WINDOW_SEC));
 
-        var font = (mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY;
+        var font = mLocationFont != null ? mLocationFont : ((mFontAssistantSmall != null) ? mFontAssistantSmall : Graphics.FONT_XTINY);
         if (showSyncError) {
             var errMsg = "sync error";
             var errColor = Graphics.COLOR_RED;

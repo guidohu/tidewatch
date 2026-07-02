@@ -1,3 +1,9 @@
 <resources>
     <string id="time_font">hot</string>
+    <string id="battery_font">default</string>
+    <string id="day_date_font">default</string>
+    <string id="current_tide_font">default</string>
+    <string id="tide_extreme_font">default</string>
+    <string id="graph_label_font">default</string>
+    <string id="location_font">default</string>
 </resources>
