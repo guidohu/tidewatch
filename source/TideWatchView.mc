@@ -115,7 +115,8 @@ class TideWatchView extends WatchUi.WatchFace {
         mLastGpsLat = Application.Properties.getValue("GpsLat");
         mLastGpsLon = Application.Properties.getValue("GpsLon");
         mLastDatum = Application.Properties.getValue("TideDatum");
-        mLastApiKey = Application.Properties.getValue("StormglassApiKey");
+        var apiKeyVal = Application.Properties.getValue("StormglassApiKey");
+        mLastApiKey = (apiKeyVal instanceof String) ? apiKeyVal as String : "";
 
         cacheProperties();
         initializeKPay(true);
@@ -1386,26 +1387,36 @@ class TideWatchView extends WatchUi.WatchFace {
      * Handles user settings changes in the view.
      */
     function onSettingsChanged() {
-        var gpsLat = Application.Properties.getValue("GpsLat") as Numeric or String or Null;
-        var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
+        var rawLat = Application.Properties.getValue("GpsLat");
+        var rawLon = Application.Properties.getValue("GpsLon");
+
+        var gpsLat = LocationUtils.getAsFloat(rawLat);
+        var gpsLon = LocationUtils.getAsFloat(rawLon);
 
         if (!LocationUtils.isValidLatitude(gpsLat)) {
-            Application.Properties.setValue("GpsLat", 0.0);
             gpsLat = 0.0;
         }
         if (!LocationUtils.isValidLongitude(gpsLon)) {
-            Application.Properties.setValue("GpsLon", 0.0);
             gpsLon = 0.0;
+        }
+
+        // Save sanitized float values back to properties if they were modified/migrated
+        if (gpsLat != rawLat) {
+            Application.Properties.setValue("GpsLat", gpsLat);
+        }
+        if (gpsLon != rawLon) {
+            Application.Properties.setValue("GpsLon", gpsLon);
         }
 
         var kpayChanged = initializeKPay(true);
 
         var curDatum = Application.Properties.getValue("TideDatum");
-        var curApiKey = Application.Properties.getValue("StormglassApiKey");
+        var apiKeyVal = Application.Properties.getValue("StormglassApiKey");
+        var curApiKey = (apiKeyVal instanceof String) ? apiKeyVal as String : "";
 
         var needsSync = false;
         if (gpsLat != mLastGpsLat || gpsLon != mLastGpsLon || curDatum != mLastDatum || 
-           (!curApiKey.equals(mLastApiKey)) || (mLastApiKey != null && !mLastApiKey.equals(curApiKey)) || kpayChanged) {
+           (!curApiKey.equals(mLastApiKey)) || kpayChanged) {
             needsSync = true;
         }
 

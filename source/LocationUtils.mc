@@ -7,8 +7,12 @@ module LocationUtilsBG {
      * @param lat The latitude object to validate.
      * @return True if the value is a valid numeric latitude; false otherwise.
      */
-    function isValidLatitude(lat as Float) as Boolean {
-        return lat >= -90.0 && lat <= 90.0;
+    function isValidLatitude(lat as Toybox.Application.Properties.ValueType) as Boolean {
+        if (lat == null || !(lat has :toFloat)) {
+            return false;
+        }
+        var f = lat.toFloat();
+        return f != null && f >= -90.0 && f <= 90.0;
     }
 
     /**
@@ -16,8 +20,12 @@ module LocationUtilsBG {
      * @param lon The longitude object to validate.
      * @return True if the value is a valid numeric longitude; false otherwise.
      */
-    function isValidLongitude(lon as Float) as Boolean {
-        return lon >= -180.0 && lon <= 180.0;
+    function isValidLongitude(lon as Toybox.Application.Properties.ValueType) as Boolean {
+        if (lon == null || !(lon has :toFloat)) {
+            return false;
+        }
+        var f = lon.toFloat();
+        return f != null && f >= -180.0 && f <= 180.0;
     }
 
     /**
@@ -27,23 +35,32 @@ module LocationUtilsBG {
      * @return True if the coordinates are set, non-zero, and valid; false otherwise.
      */
     function isLocationSetAndValid(lat as Toybox.Application.Properties.ValueType, lon as Toybox.Application.Properties.ValueType) as Boolean {
+        if (lat == null || lon == null) {
+            return false;
+        }
         if (!(lat has :toFloat) || !(lon has :toFloat)) {
             return false;
         }
-        if (!isValidLatitude(lat.toFloat()) || !isValidLongitude(lon.toFloat())) {
+        var latFloat = lat.toFloat();
+        var lonFloat = lon.toFloat();
+        if (latFloat == null || lonFloat == null) {
             return false;
         }
-        return !(lat.toFloat() == 0.0 && lon.toFloat() == 0.0);
+        if (!isValidLatitude(latFloat) || !isValidLongitude(lonFloat)) {
+            return false;
+        }
+        return !(latFloat == 0.0 && lonFloat == 0.0);
     }
 
     /**
      * Safely converts an object to a Float using :toFloat.
      */
     function getAsFloat(val as Toybox.Application.Properties.ValueType) as Float {
-        if (val has :toFloat) {
-            return val.toFloat() as Float;
+        if (val == null || !(val has :toFloat)) {
+            return 0.0;
         }
-        return 0.0;
+        var f = val.toFloat();
+        return f != null ? f : 0.0;
     }
 }
 
