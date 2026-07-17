@@ -1,0 +1,9 @@
+<resources>
+    <string id="time_font">Inter_50px</string>
+    <string id="battery_font">Inter_10px</string>
+    <string id="day_date_font">Inter_15px</string>
+    <string id="current_tide_font">Inter_30px</string>
+    <string id="tide_extreme_font">Inter_15px</string>
+    <string id="graph_label_font">Inter_10px</string>
+    <string id="location_font">Inter_10px</string>
+</resources>
