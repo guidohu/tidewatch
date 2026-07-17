@@ -2,7 +2,7 @@ import Toybox.Lang;
 
 (:background)
 module VersionBG {
-    const STRING = "2.5.0";
+    const STRING = "2.6.0";
 }
 
 module Version {
