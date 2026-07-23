@@ -255,7 +255,10 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // 2. Error Check
-        var apiKey = Application.Properties.getValue("StormglassApiKey") as String;
+        // StormglassApiKey can be null or a non-String (e.g. when the user clears
+        // the text field in Connect IQ).
+        var apiKeyVal = Application.Properties.getValue("StormglassApiKey");
+        var apiKey = (apiKeyVal instanceof String) ? apiKeyVal as String : "";
         var hasApiKey = (!apiKey.equals(""));
 
         var gpsLat = Application.Properties.getValue("GpsLat") as Numeric or String or Null;

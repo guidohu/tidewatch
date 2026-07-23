@@ -205,7 +205,12 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function parseFloatSafe(val as Object?) as Float {
         if (val != null && val has :toFloat) {
-            return val.toFloat();
+            // toFloat() returns null for non-numeric strings (e.g. bad backend
+            // data); guard it so this never returns null.
+            var f = val.toFloat();
+            if (f != null) {
+                return f;
+            }
         }
         return 0.0f;
     }
@@ -217,7 +222,12 @@ class TideWatchBackground extends System.ServiceDelegate {
      */
     function parseNumberSafe(val as Object?) as Number {
         if (val != null && val has :toNumber) {
-            return val.toNumber();
+            // toNumber() returns null for non-numeric strings (e.g. bad backend
+            // data); guard it so this never returns null.
+            var n = val.toNumber();
+            if (n != null) {
+                return n;
+            }
         }
         return 0;
     }

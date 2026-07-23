@@ -123,7 +123,6 @@ class TideWatchSettingsMenu extends WatchUi.Menu2 {
             AppStorage.clearWeatherUpdatedAt();
             AppStorage.clearTideTimelineUpdatedAt();
             AppStorage.clearTideExtremesUpdatedAt();
-            AppStorage.setDataUpdatedAt(0);
         }
         
         scheduleNextBackgroundEvent(null);
@@ -397,7 +396,7 @@ class AboutMenu extends WatchUi.Menu2 {
         Menu2.initialize({:title=>"About"});
         
         var lastSyncStr = formatTime(AppStorage.getDataUpdatedAt(), "Never");
-        var nextSyncStr = formatTime(AppStorage.getNextSyncTime(), "None");
+        var nextSyncStr = formatNextSyncTime(AppStorage.getNextSyncTime(), "None");
         
         var stationName = AppStorage.getTideStationName();
         var stationCountry = AppStorage.getTideStationCountry();
@@ -417,6 +416,17 @@ class AboutMenu extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem("openwaters.io", "used for tide data", "ow", {}));
         addItem(new WatchUi.MenuItem("stormglass.io", "used for weather data", "stormglass", {}));
         addItem(new WatchUi.MenuItem("bigdatacloud.com", "used for geo data", "bigdatacloud", {}));
+    }
+
+    function formatNextSyncTime(timestamp as Number, defaultStr as String) as String {
+        if (timestamp <= 0) {
+            return defaultStr;
+        }
+        var now = Time.now().value();
+        if (timestamp <= now) {
+            return "Pending";
+        }
+        return formatTime(timestamp, defaultStr);
     }
 
     function formatTime(timestamp as Number, defaultStr as String) as String {

@@ -88,7 +88,6 @@ class TideWatchApp extends Application.AppBase {
 /**
  * Registers/schedules the next background temporal event.
  */
-(:background)
 function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
     if (Toybox has :Background) {
         try { 
@@ -117,7 +116,7 @@ function scheduleNextBackgroundEvent(earliestTime as Time.Moment?) as Void {
             // ]));
             
             Background.registerForTemporalEvent(nextTime);
-            Application.Storage.setValue("nextSyncTime", nextTime.value());
+            AppStorage.setNextSyncTime(nextTime.value());
         } catch (e) {
             System.println("ERROR: Background registration failed: " + e.getErrorMessage()); 
         }
