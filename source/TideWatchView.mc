@@ -45,6 +45,13 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastPowerMode as Boolean = false;
     var mLastGraphHash as Number = 0;
 
+    // Tracks when the (expensive) graph min/max bounds were last recomputed. The
+    // bounds are only consumed when the graph bitmap is (re)rendered, so they are
+    // refreshed on the same 10-minute bucket / data-hash cadence rather than on
+    // every one-minute update. See updateCacheAndCalculations.
+    var mLastBoundsBucket as Number = -1;
+    var mLastBoundsHash as Number = 0;
+
     // Cached semi-transparent overlay behind the tide-change text. Recreated only
     // when its dimensions change, to avoid per-frame allocations from the limited
     // graphics memory pool (see drawTideChangeText).
@@ -262,14 +269,15 @@ class TideWatchView extends WatchUi.WatchFace {
         }
 
         // 2. Error Check
-        // StormglassApiKey can be null or a non-String (e.g. when the user clears
-        // the text field in Connect IQ).
-        var apiKeyVal = Application.Properties.getValue("StormglassApiKey");
-        var apiKey = (apiKeyVal instanceof String) ? apiKeyVal as String : "";
-        var hasApiKey = (!apiKey.equals(""));
+        // The API key and GPS coordinates only change via onSettingsChanged, which
+        // refreshes these cached members. Reading from the cache avoids three
+        // Application.Properties lookups on every one-minute update. (StormglassApiKey
+        // can be null or a non-String when the user clears the field in Connect IQ,
+        // but mLastApiKey is always normalized to a String.)
+        var hasApiKey = (mLastApiKey != null && !(mLastApiKey as String).equals(""));
 
-        var gpsLat = Application.Properties.getValue("GpsLat") as Numeric or String or Null;
-        var gpsLon = Application.Properties.getValue("GpsLon") as Numeric or String or Null;
+        var gpsLat = mLastGpsLat as Application.Properties.ValueType;
+        var gpsLon = mLastGpsLon as Application.Properties.ValueType;
 
         if (!LocationUtils.isLocationSetAndValid(gpsLat, gpsLon)) {
              if (mCachedShowDate || mInLowPowerMode) {
@@ -383,26 +391,57 @@ class TideWatchView extends WatchUi.WatchFace {
             mWeatherError = AppStorage.getWeatherError();
         }
 
-        var stats = System.getSystemStats();
-        mBattery = stats.battery;
+        // Battery is only rendered outside low-power mode (see the drawBattery call in
+        // onUpdate), so skip the getSystemStats() call entirely while in the
+        // always-on/sleep state. mBattery simply retains its last value there.
+        if (!mInLowPowerMode) {
+            var stats = System.getSystemStats();
+            mBattery = stats.battery;
+        }
 
         mCurrentHeight = 0.0;
         mIsRising = false;
         mNextExtremaStr = null;
         mValidSwells = [];
         mSwellTexts = [];
-        mMinH = 9999.0;
-        mMaxH = -9999.0;
-        mMinSwellH = 9999.0;
-        mMaxSwellH = -9999.0;
         mMinT = now - GRAPH_PAST_HOURS * Constants.SECONDS_IN_HOUR;
         mMaxT = now + GRAPH_FUTURE_HOURS * Constants.SECONDS_IN_HOUR;
 
         if (mcTideData != null && mcTideData.size() > 0) {
             var currWaveIdx = findCurrentTideState(now, targetTideUnit);
             findNextExtrema(now, targetTideUnit, use24Hour);
-            findCurrentSwell(now, targetSwellUnit, currWaveIdx);
-            calculateGraphBounds();
+
+            // mValidSwells/mSwellTexts are consumed only by drawSwellData, which runs
+            // exclusively when the swell summary is enabled and we're not in low-power
+            // mode. Skip the full wave-array scan otherwise.
+            if (mCachedShowSwellSummary && !mInLowPowerMode) {
+                findCurrentSwell(now, targetSwellUnit, currWaveIdx);
+            }
+
+            // Graph bounds are only used when the cached graph bitmap is (re)rendered,
+            // which fires on the same 10-minute bucket / data-hash transitions used in
+            // drawGraphs. Recompute them on those transitions instead of rescanning the
+            // full tide+wave arrays on every one-minute update. The mMaxH <= mMinH guard
+            // forces a recompute whenever the bounds are in the invalid sentinel state
+            // (e.g. the first frame after tide data first arrives).
+            var graphBucket = (now / 60) / 10;
+            var boundsHash = mLastSettingsHash + mLastDataUpdatedAt;
+            if (graphBucket != mLastBoundsBucket || boundsHash != mLastBoundsHash || mMaxH <= mMinH) {
+                mMinH = 9999.0;
+                mMaxH = -9999.0;
+                mMinSwellH = 9999.0;
+                mMaxSwellH = -9999.0;
+                calculateGraphBounds();
+                mLastBoundsBucket = graphBucket;
+                mLastBoundsHash = boundsHash;
+            }
+        } else {
+            // No tide data: keep the bounds in the "invalid" sentinel state so the graph
+            // stays hidden (drawGraphs guards on mMaxH > mMinH), matching prior behavior.
+            mMinH = 9999.0;
+            mMaxH = -9999.0;
+            mMinSwellH = 9999.0;
+            mMaxSwellH = -9999.0;
         }
     }
 
