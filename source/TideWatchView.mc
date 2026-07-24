@@ -45,6 +45,13 @@ class TideWatchView extends WatchUi.WatchFace {
     var mLastPowerMode as Boolean = false;
     var mLastGraphHash as Number = 0;
 
+    // Cached semi-transparent overlay behind the tide-change text. Recreated only
+    // when its dimensions change, to avoid per-frame allocations from the limited
+    // graphics memory pool (see drawTideChangeText).
+    var mCachedOverlayBitmap as Graphics.BufferedBitmap? = null;
+    var mOverlayBitmapW as Number = 0;
+    var mOverlayBitmapH as Number = 0;
+
     var mBattery as Float = 0.0;
 
     var mCurrentHeight as Float = 0.0;
@@ -411,7 +418,9 @@ class TideWatchView extends WatchUi.WatchFace {
             if (now >= t1 && now <= t2) {
                 var h1 = convertHeight(p1[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
                 var h2 = convertHeight(p2[1] as Number, mcTideUnitApi, DataKeys.UNIT_METER);
-                var ratio = (now - t1).toFloat() / (t2 - t1).toFloat();
+                // Guard against duplicate/adjacent equal timestamps to avoid a divide-by-zero.
+                var span = (t2 - t1).toFloat();
+                var ratio = (span != 0.0) ? (now - t1).toFloat() / span : 0.0;
                 mCurrentHeight = h1 + (h2 - h1) * ratio;
                 mIsRising = h2 > h1;
                 currWaveIdx = i;
@@ -674,42 +683,61 @@ class TideWatchView extends WatchUi.WatchFace {
         var rectX = startX - padX;
         var rectY = (yVal - 5 * mScale) - rectH / 2;
 
-        // Use a BufferedBitmap to isolate the setFill state and prevent breaking subsequent primitives (like drawArrow)
+        // Use a BufferedBitmap to isolate the setFill state and prevent breaking subsequent primitives (like drawArrow).
+        // The bitmap is cached and only rebuilt when its size changes, otherwise a fresh allocation every frame can
+        // exhaust the limited graphics memory pool once the graph bitmap is already resident.
         if (dc has :setBlendMode && Graphics has :createBufferedBitmap) {
-            dc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
-            
-            var options = {
-                :width => rectW,
-                :height => rectH
-            };
-            
-            var bitmapRef = Graphics.createBufferedBitmap(options);
-            var bufferedBitmap = bitmapRef.get();
-            if (bufferedBitmap != null) {
-                var bDc = bufferedBitmap.getDc();
-                bDc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
-                bDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
-                bDc.clear();
-                
-                bDc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
-                
-                if (bDc has :setFill) {
-                    var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
-                    var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-                    // Create the 32-bit ARGB value (102 out of 255 is ~40% opacity)
-                    var alphaColor = (102 << 24) | baseRgb; 
-                    
-                    // setColor strips alpha, so setFill MUST be used
-                    bDc.setFill(alphaColor);
-                } else {
-                    var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
-                    bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
+            if (mCachedOverlayBitmap == null || mOverlayBitmapW != rectW || mOverlayBitmapH != rectH) {
+                // Release the stale bitmap first so its pool memory can be reclaimed before we request a new one.
+                mCachedOverlayBitmap = null;
+                try {
+                    var bitmapRef = Graphics.createBufferedBitmap({
+                        :width => rectW,
+                        :height => rectH
+                    });
+                    var newBitmap = bitmapRef.get() as Graphics.BufferedBitmap?;
+                    if (newBitmap != null) {
+                        var bDc = newBitmap.getDc();
+                        bDc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+                        bDc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_TRANSPARENT);
+                        bDc.clear();
+
+                        bDc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
+
+                        if (bDc has :setFill) {
+                            var rgb = getRgbFromColor(Graphics.COLOR_BLACK);
+                            var baseRgb = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+                            // Create the 32-bit ARGB value (102 out of 255 is ~40% opacity)
+                            var alphaColor = (102 << 24) | baseRgb;
+
+                            // setColor strips alpha, so setFill MUST be used
+                            bDc.setFill(alphaColor);
+                        } else {
+                            var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
+                            bDc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
+                        }
+
+                        bDc.fillRectangle(0, 0, rectW, rectH);
+
+                        mCachedOverlayBitmap = newBitmap;
+                        mOverlayBitmapW = rectW;
+                        mOverlayBitmapH = rectH;
+                    }
+                } catch (e) {
+                    mCachedOverlayBitmap = null;
                 }
-                
-                bDc.fillRectangle(0, 0, rectW, rectH);
-                dc.drawBitmap(rectX, rectY, bufferedBitmap);
             }
-            dc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+
+            if (mCachedOverlayBitmap != null) {
+                dc.setBlendMode(Graphics.BLEND_MODE_SOURCE_OVER);
+                dc.drawBitmap(rectX, rectY, mCachedOverlayBitmap);
+                dc.setBlendMode(Graphics.BLEND_MODE_NO_BLEND);
+            } else {
+                // Allocation failed: fall back to a solid blended rectangle on the main dc.
+                var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
+                dc.setColor(blendedColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillRectangle(rectX, rectY, rectW, rectH);
+            }
         } else {
             // Legacy hardware fallback path
             var blendedColor = blendWithBlack(Graphics.COLOR_BLACK, 0.40);
